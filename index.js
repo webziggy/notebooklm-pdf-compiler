@@ -23,15 +23,21 @@ if (!isMainThread) {
             
             if (compress) {
                 const compPath = path.join(tempDir, 'compressed_' + file.replace(/[^a-zA-Z0-9.-]/g, '_'));
+                const tmpCompPath = compPath + '.tmp';
                 if (!fs.existsSync(compPath)) {
                     parentPort.postMessage({ type: 'log', message: `[Worker] Compressing ${file} (Original Size: ${(statOriginal.size / (1024*1024)).toFixed(2)} MB)...` });
                     // Default to Clop for vastly superior image compression, fallback to GS if clop fails
-                    const clopCmd = `nice -n 10 clop optimise pdf --output "${compPath}" "${filePath}"`;
-                    const gsCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${compPath}" "${filePath}"`;
+                    const clopCmd = `nice -n 10 clop optimise pdf --output "${tmpCompPath}" "${filePath}"`;
+                    const gsCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${tmpCompPath}" "${filePath}"`;
                     try {
                         execSync(clopCmd, { stdio: 'ignore' });
                     } catch (e) {
                         execSync(gsCmd, { stdio: 'ignore' });
+                    }
+                    if (fs.existsSync(tmpCompPath)) {
+                        fs.renameSync(tmpCompPath, compPath);
+                    } else {
+                        throw new Error("Compression failed: No output file generated.");
                     }
                     const newStat = fs.statSync(compPath);
                     parentPort.postMessage({ type: 'log', message: `[Worker] Finished ${file} (New Size: ${(newStat.size / (1024*1024)).toFixed(2)} MB)` });
