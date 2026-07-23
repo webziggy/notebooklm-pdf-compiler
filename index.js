@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const { isMainThread, parentPort, workerData, Worker } = require('worker_threads');
 const util = require('util');
 const pdfParse = require('pdf-parse');
 const { PDFDocument } = require('pdf-lib');
@@ -8,6 +9,60 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
+// ==========================================
+// WORKER THREAD LOGIC
+// ==========================================
+if (!isMainThread) {
+    async function processFile() {
+        const { filePath, file, compress, tempDir, maxWords } = workerData;
+        let activePath = filePath;
+        let finalSize = 0;
+        
+        try {
+            if (compress) {
+                const compPath = path.join(tempDir, 'compressed_' + file.replace(/[^a-zA-Z0-9.-]/g, '_'));
+                if (!fs.existsSync(compPath)) {
+                    const cmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${compPath}" "${filePath}"`;
+                    execSync(cmd, { stdio: 'ignore' });
+                }
+                activePath = compPath;
+            }
+            
+            const stat = fs.statSync(activePath);
+            finalSize = stat.size;
+
+            const pdfBytes = fs.readFileSync(activePath);
+            let wordCount = 0;
+            let numPages = 1;
+
+            try {
+                const data = await pdfParse(pdfBytes);
+                wordCount = data.text.trim().split(/\s+/).filter(w => w.length > 0).length;
+                numPages = data.numpages || 1;
+            } catch (e) {
+                try {
+                    const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+                    numPages = pdfDoc.getPageCount();
+                    wordCount = Math.floor(finalSize / 150); // Heuristic fallback
+                } catch (innerErr) {
+                    wordCount = maxWords; // Max out to force splitting
+                    numPages = 1;
+                }
+            }
+            
+            parentPort.postMessage({ success: true, wordCount, numPages, size: finalSize, compressedPath: compress ? activePath : null });
+        } catch (err) {
+            parentPort.postMessage({ success: false, error: err.message });
+        }
+    }
+    
+    processFile();
+    return; // End worker execution
+}
+
+// ==========================================
+// MAIN THREAD LOGIC
+// ==========================================
 let MAX_WORDS_PER_CHUNK = 450000;
 let MAX_BYTES_PER_CHUNK = 180 * 1024 * 1024; // 180 MB
 
@@ -25,8 +80,10 @@ Usage:
 Options:
   --input <dir>      Directory containing the source PDFs (default: ./input)
   --output <dir>     Directory to save the compiled volumes (default: ./output)
+  --logs <dir>       Directory to save the compiler logs (default: ./logs)
   --groups <file>    Path to a JSON file mapping folders/groups to file arrays.
-  --suggest-groups   Automatically scan input/ and generate 'groups.json' (reads files-cache.json if present)
+  --suggest-groups   Automatically scan input/ and generate 'groups.json'
+  --compress         Enable Ghostscript pre-compression to maximize source slot efficiency
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
   --max-mb <num>     Override the default file size limit in MB (default: 180)
@@ -44,6 +101,7 @@ const inputDir = path.resolve(getArgValue('--input', './input'));
 const outputDir = path.resolve(getArgValue('--output', './output'));
 const logsDir = path.resolve(getArgValue('--logs', './logs'));
 const isDryRun = args.includes('--dry-run');
+const doCompress = args.includes('--compress');
 
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
@@ -125,7 +183,6 @@ if (args.includes('--suggest-groups')) {
         });
     }
 
-    // Catch missing
     const groupedFiles = new Set(Object.values(groups).flat());
     groups["Ungrouped"] = groups["Ungrouped"] || [];
     files.forEach(f => {
@@ -139,7 +196,6 @@ if (args.includes('--suggest-groups')) {
     process.exit(0);
 }
 
-
 const CACHE_FILE = path.join(outputDir, '.compiler-cache.json');
 let cache = {};
 if (fs.existsSync(CACHE_FILE)) {
@@ -151,9 +207,23 @@ const saveCache = () => fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null,
 // Lower OS priority for safety
 try { os.setPriority(10); } catch (e) {}
 
-// Setup Temp Dir for Slicing
+// Setup Temp Dirs
 const tempDir = path.join(os.tmpdir(), 'pdf_compiler_slices');
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+const compCacheDir = path.join(outputDir, '.compiler-cache', 'compressed');
+if (doCompress && !fs.existsSync(compCacheDir)) {
+    fs.mkdirSync(compCacheDir, { recursive: true });
+}
+
+function runWorker(taskData) {
+    return new Promise((resolve) => {
+        const worker = new Worker(__filename, { workerData: taskData });
+        worker.on('message', resolve);
+        worker.on('error', (err) => resolve({ success: false, error: err.message }));
+        worker.on('exit', () => resolve({ success: false, error: 'Worker exited' }));
+    });
+}
 
 async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
     const volName = `Volume_${chunkIndex}_${groupName}`.replace(/_+/g, '_');
@@ -184,6 +254,7 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
     }
 
     if (gsInputs.length > 0) {
+        // Output standard merge (pre-compression already happened if enabled)
         const mergeCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile="${outputPath}" ${gsInputs.join(' ')}`;
         try {
             execSync(mergeCmd, { stdio: 'ignore' });
@@ -200,7 +271,7 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
         if (processedXmp.has(f.originalName)) continue;
         processedXmp.add(f.originalName);
         try {
-            const xmpStr = execSync(`exiftool -XMP -b "${f.path}"`, { encoding: 'utf8' });
+            const xmpStr = execSync(`exiftool -XMP -b "${f.originalSourcePath}"`, { encoding: 'utf8' });
             const match = xmpStr.match(/<rdf:Description[\s\S]*?<\/rdf:Description>/g);
             if (match) {
                 combinedXmp += `\n<!-- Source File: ${f.originalName} -->\n`;
@@ -265,10 +336,63 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
         groupsMap["Ungrouped"] = files;
     }
 
+    // ==========================================
+    // PRE-PROCESSING STAGE (MULTI-THREADED)
+    // ==========================================
+    const tasks = [];
+    for (const [groupName, groupFiles] of Object.entries(groupsMap)) {
+        for (const file of groupFiles) {
+            const filePath = path.join(inputDir, file);
+            if (!fs.existsSync(filePath)) continue;
+            
+            const stat = fs.statSync(filePath);
+            const cacheKey = `${doCompress ? 'comp_' : ''}${file}_${stat.size}_${Math.floor(stat.mtimeMs)}`;
+            
+            if (!cache[cacheKey]) {
+                tasks.push({ filePath, file, compress: doCompress, tempDir: compCacheDir, maxWords: MAX_WORDS_PER_CHUNK, cacheKey });
+            }
+        }
+    }
+
+    if (tasks.length > 0) {
+        console.log(`\n===========================================`);
+        console.log(`Pre-processing ${tasks.length} new/modified files via Worker Threads...`);
+        console.log(`===========================================\n`);
+        
+        const MAX_CONCURRENCY = Math.min(os.cpus().length, 4); // Cap at 4 to prevent OOM on huge PDFs
+        let i = 0;
+        let completed = 0;
+
+        const workers = Array(MAX_CONCURRENCY).fill(null).map(async () => {
+            while (i < tasks.length) {
+                const task = tasks[i++];
+                const result = await runWorker(task);
+                if (result.success) {
+                    cache[task.cacheKey] = {
+                        wordCount: result.wordCount,
+                        size: result.size,
+                        numPages: result.numPages,
+                        compressedPath: result.compressedPath
+                    };
+                    saveCache();
+                    completed++;
+                    const sizeMb = (result.size / (1024 * 1024)).toFixed(2);
+                    console.log(`  [${completed}/${tasks.length}] Processed ${task.file} - Words: ${result.wordCount} (Pages: ${result.numPages}, Size: ${sizeMb} MB)`);
+                } else {
+                    console.error(`  [!] Failed to process ${task.file}: ${result.error}`);
+                }
+            }
+        });
+        await Promise.all(workers);
+    }
+
+    // ==========================================
+    // CHUNKING & MERGING STAGE
+    // ==========================================
     for (const [groupName, groupFiles] of Object.entries(groupsMap)) {
         if (groupFiles.length === 0) continue;
         console.log(`\n===========================================`);
-        console.log(`Processing Group: ${groupName} (${groupFiles.length} files)`);
+        console.log(`Compiling Group: ${groupName} (${groupFiles.length} files)`);
         console.log(`===========================================\n`);
         
         const safeGroupName = groupName.replace(/[^a-zA-Z0-9 -_]/g, '_').replace(/_+/g, '_').trim();
@@ -279,53 +403,31 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
 
         for (let i = 0; i < groupFiles.length; i++) {
             const file = groupFiles[i];
-            const filePath = path.join(inputDir, file);
-            if (!fs.existsSync(filePath)) {
+            const originalFilePath = path.join(inputDir, file);
+            if (!fs.existsSync(originalFilePath)) {
                 console.warn(`  [!] File not found, skipping: ${file}`);
                 continue;
             }
             
-            const stat = fs.statSync(filePath);
-            const fileByteSize = stat.size;
-            const cacheKey = `${file}_${stat.size}_${Math.floor(stat.mtimeMs)}`;
+            const stat = fs.statSync(originalFilePath);
+            const cacheKey = `${doCompress ? 'comp_' : ''}${file}_${stat.size}_${Math.floor(stat.mtimeMs)}`;
 
-            let fileWordCount = 0;
-            let numPages = 1;
-            
-            const sizeMb = (stat.size / (1024 * 1024)).toFixed(2);
-
-            if (cache[cacheKey]) {
-                fileWordCount = cache[cacheKey].wordCount;
-                numPages = cache[cacheKey].numPages || 1;
-                console.log(`  [${i+1}/${groupFiles.length}] Cached ${file} - Words: ${fileWordCount} (Pages: ${numPages}, Size: ${sizeMb} MB)`);
-            } else {
-                const pdfBytes = fs.readFileSync(filePath);
-                try {
-                    const data = await pdfParse(pdfBytes);
-                    fileWordCount = data.text.trim().split(/\s+/).filter(w => w.length > 0).length;
-                    numPages = data.numpages || 1;
-                    console.log(`  [${i+1}/${groupFiles.length}] Scanned ${file} - Words: ${fileWordCount} (Pages: ${numPages}, Size: ${sizeMb} MB)`);
-                    cache[cacheKey] = { wordCount: fileWordCount, size: stat.size, numPages };
-                    saveCache();
-                } catch (e) {
-                    console.error(`  [!] Error parsing text for ${file}: ${e.message}. Attempting fallback...`);
-                    try {
-                        const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
-                        numPages = pdfDoc.getPageCount();
-                        fileWordCount = Math.floor(stat.size / 150); // Rough estimate: 150 bytes per word
-                        console.log(`  [${i+1}/${groupFiles.length}] Fallback Scanned ${file} - Est. Words: ${fileWordCount} (Pages: ${numPages}, Size: ${sizeMb} MB)`);
-                        cache[cacheKey] = { wordCount: fileWordCount, size: stat.size, numPages };
-                        saveCache();
-                    } catch (innerErr) {
-                        console.error(`  [!] Fallback failed for ${file}. Assuming 1 page and maxing out chunk.`);
-                        fileWordCount = MAX_WORDS_PER_CHUNK; // Force into its own chunk to be safe
-                        numPages = 1;
-                    }
-                }
+            if (!cache[cacheKey]) {
+                console.warn(`  [!] Missing cache for ${file}, skipping (should have been pre-processed).`);
+                continue;
             }
 
+            const cData = cache[cacheKey];
+            const fileWordCount = cData.wordCount;
+            const numPages = cData.numPages;
+            const finalSize = cData.size;
+            const activePath = cData.compressedPath || originalFilePath;
+
+            const sizeMb = (finalSize / (1024 * 1024)).toFixed(2);
+            console.log(`  [${i+1}/${groupFiles.length}] Chunking ${file} - Words: ${fileWordCount} (Pages: ${numPages}, Size: ${sizeMb} MB)`);
+
             const avgWordsPerPage = Math.ceil(fileWordCount / numPages);
-            const avgBytesPerPage = Math.ceil(fileByteSize / numPages);
+            const avgBytesPerPage = Math.ceil(finalSize / numPages);
 
             let remainingPages = numPages;
             let currentStartPage = 1;
@@ -336,7 +438,8 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
 
                 if (currentWordCount + remainingWords <= MAX_WORDS_PER_CHUNK && currentByteSize + remainingBytes <= MAX_BYTES_PER_CHUNK) {
                     currentVolumeFiles.push({
-                        path: filePath,
+                        path: activePath,
+                        originalSourcePath: originalFilePath,
                         startPage: currentStartPage,
                         endPage: currentStartPage + remainingPages - 1,
                         originalName: file,
@@ -364,7 +467,8 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
                     }
 
                     currentVolumeFiles.push({
-                        path: filePath,
+                        path: activePath,
+                        originalSourcePath: originalFilePath,
                         startPage: currentStartPage,
                         endPage: currentStartPage + pagesToTake - 1,
                         originalName: file,
