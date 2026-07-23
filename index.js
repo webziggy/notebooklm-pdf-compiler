@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 
-const { PDFDocument } = require('pdf-lib');
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('child_process');
 
-// Safe limits (NotebookLM limits: 500k words, 200MB)
 let MAX_WORDS_PER_CHUNK = 450000;
 let MAX_BYTES_PER_CHUNK = 180 * 1024 * 1024; // 180 MB
 
@@ -24,6 +23,8 @@ Usage:
 Options:
   --input <dir>      Directory containing the source PDFs (default: ./input)
   --output <dir>     Directory to save the compiled volumes (default: ./output)
+  --groups <file>    Path to a JSON file mapping folders/groups to file arrays.
+  --suggest-groups   Automatically scan input/ and generate 'groups.json' (reads files-cache.json if present)
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
   --max-mb <num>     Override the default file size limit in MB (default: 180)
@@ -37,22 +38,64 @@ const getArgValue = (flag, defaultValue) => {
     return index !== -1 && args[index + 1] ? args[index + 1] : defaultValue;
 };
 
-const isDryRun = args.includes('--dry-run');
 const inputDir = path.resolve(getArgValue('--input', './input'));
 const outputDir = path.resolve(getArgValue('--output', './output'));
+const isDryRun = args.includes('--dry-run');
 
 if (args.includes('--max-words')) MAX_WORDS_PER_CHUNK = parseInt(getArgValue('--max-words', MAX_WORDS_PER_CHUNK), 10);
 if (args.includes('--max-mb')) MAX_BYTES_PER_CHUNK = parseInt(getArgValue('--max-mb', 180), 10) * 1024 * 1024;
 
 if (!fs.existsSync(inputDir)) {
     console.error(`Error: Input directory '${inputDir}' does not exist.`);
-    console.error(`Create the directory or specify a different one using --input <dir>`);
     process.exit(1);
 }
 
-if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+// Phase 2.1: Auto-Grouping logic
+if (args.includes('--suggest-groups')) {
+    const groupsOutput = 'groups.json';
+    const groups = {};
+    const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
+    const fileSet = new Set(files);
+    
+    const cachePath = path.join(inputDir, 'files-cache.json');
+    if (fs.existsSync(cachePath)) {
+        console.log(`Found files-cache.json, building groups based on Box folders...`);
+        const boxCache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        boxCache.forEach(item => {
+            const filename = item.name + '.pdf';
+            if (fileSet.has(filename)) {
+                let folder = item.folder || "Ungrouped";
+                folder = folder.replace(/[^a-zA-Z0-9 -_]/g, '_').trim(); // sanitize
+                if (!groups[folder]) groups[folder] = [];
+                groups[folder].push(filename);
+            }
+        });
+    } else {
+        const regexStr = getArgValue('--suggest-groups', '^([A-Za-z]+)-');
+        const regex = new RegExp(regexStr);
+        files.forEach(f => {
+            const match = f.match(regex);
+            const groupName = match ? match[1] : 'Ungrouped';
+            if (!groups[groupName]) groups[groupName] = [];
+            groups[groupName].push(f);
+        });
+    }
+
+    // Catch missing
+    const groupedFiles = new Set(Object.values(groups).flat());
+    groups["Ungrouped"] = groups["Ungrouped"] || [];
+    files.forEach(f => {
+        if (!groupedFiles.has(f)) groups["Ungrouped"].push(f);
+    });
+    if (groups["Ungrouped"].length === 0) delete groups["Ungrouped"];
+
+    fs.writeFileSync(groupsOutput, JSON.stringify(groups, null, 2));
+    console.log(`\nCreated ${groupsOutput}!`);
+    console.log(`You can now run: node index.js --groups ${groupsOutput}\n`);
+    process.exit(0);
 }
+
+if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
 const CACHE_FILE = path.join(outputDir, '.compiler-cache.json');
 let cache = {};
@@ -60,12 +103,98 @@ if (fs.existsSync(CACHE_FILE)) {
     try { cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')); } 
     catch (e) { console.warn('Could not parse cache file, starting fresh.'); }
 }
-const saveCache = () => {
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
-};
+const saveCache = () => fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
 
-// Lower priority so heavy parsing doesn't freeze the OS
+// Lower OS priority for safety
 try { os.setPriority(10); } catch (e) {}
+
+// Setup Temp Dir for Slicing
+const tempDir = path.join(os.tmpdir(), 'pdf_compiler_slices');
+if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
+    const volName = `Volume_${chunkIndex}_${groupName}`.replace(/_+/g, '_');
+    const outputPath = path.join(outputDir, `${volName}.pdf`);
+    
+    if (isDryRun) {
+        console.log(`>>> [DRY RUN] Would save ${volName}.pdf | Total Words: ~${wordCount}`);
+        return;
+    }
+
+    console.log(`\n>>> Merging ${volName}.pdf...`);
+    
+    const gsInputs = [];
+    for (const f of volFiles) {
+        if (f.isFullFile) {
+            gsInputs.push(`"${f.path}"`);
+        } else {
+            const slicePath = path.join(tempDir, `slice_${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`);
+            const cmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dFirstPage=${f.startPage} -dLastPage=${f.endPage} -sOutputFile="${slicePath}" "${f.path}"`;
+            try {
+                execSync(cmd, { stdio: 'ignore' });
+                gsInputs.push(`"${slicePath}"`);
+                f.tempSlicePath = slicePath;
+            } catch (e) {
+                console.error(`  [!] Ghostscript slice error: ${e.message}`);
+            }
+        }
+    }
+
+    if (gsInputs.length > 0) {
+        const mergeCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile="${outputPath}" ${gsInputs.join(' ')}`;
+        try {
+            execSync(mergeCmd, { stdio: 'ignore' });
+        } catch (e) {
+            console.error(`  [!] Ghostscript merge error: ${e.message}`);
+        }
+    }
+
+    console.log(`    > Compiling XMP Metadata via exiftool...`);
+    let combinedXmp = `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>\n<x:xmpmeta xmlns:x="adobe:ns:meta/">\n<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n`;
+    
+    const processedXmp = new Set();
+    for (const f of volFiles) {
+        if (processedXmp.has(f.originalName)) continue;
+        processedXmp.add(f.originalName);
+        try {
+            const xmpStr = execSync(`exiftool -XMP -b "${f.path}"`, { encoding: 'utf8' });
+            const match = xmpStr.match(/<rdf:Description[\s\S]*?<\/rdf:Description>/g);
+            if (match) {
+                combinedXmp += `\n<!-- Source File: ${f.originalName} -->\n`;
+                combinedXmp += match.join('\n');
+            }
+        } catch (e) { }
+    }
+    combinedXmp += `\n</rdf:RDF>\n</x:xmpmeta>\n<?xpacket end="w"?>`;
+    const xmpTemp = path.join(tempDir, `xmp_${Date.now()}.xmp`);
+    fs.writeFileSync(xmpTemp, combinedXmp);
+
+    try {
+        execSync(`exiftool -overwrite_original "-xmp<=${xmpTemp}" "${outputPath}"`, { stdio: 'ignore' });
+    } catch (e) {
+        console.error(`  [!] Exiftool injection error: ${e.message}`);
+    }
+    if (fs.existsSync(xmpTemp)) fs.unlinkSync(xmpTemp);
+
+    console.log(`    > Creating Sidecar TOC...`);
+    const tocPath = path.join(outputDir, `${volName}_TOC.md`);
+    let tocContent = `# Table of Contents: ${volName}\n\n`;
+    let currentInternalPage = 1;
+
+    for (const f of volFiles) {
+        const pagesInSlice = f.endPage - f.startPage + 1;
+        tocContent += `- **${f.originalName}** (Source Pages: ${f.startPage}-${f.endPage}) -> Volume Pages: ${currentInternalPage}-${currentInternalPage + pagesInSlice - 1}\n`;
+        currentInternalPage += pagesInSlice;
+    }
+    fs.writeFileSync(tocPath, tocContent);
+
+    for (const f of volFiles) {
+        if (f.tempSlicePath && fs.existsSync(f.tempSlicePath)) fs.unlinkSync(f.tempSlicePath);
+    }
+    
+    const sizeMb = (fs.statSync(outputPath).size / (1024 * 1024)).toFixed(2);
+    console.log(`>>> Saved ${volName}.pdf (${sizeMb} MB) | Total Words: ~${wordCount}\n`);
+}
 
 (async () => {
     if (isDryRun) {
@@ -75,143 +204,127 @@ try { os.setPriority(10); } catch (e) {}
         console.log('===========================================\n');
     }
 
-    const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf')).sort();
-    if (files.length === 0) {
-        console.log(`No PDFs found in ${inputDir}`);
-        process.exit(0);
+    let groupsMap = {};
+    const groupsFileParam = getArgValue('--groups');
+    if (groupsFileParam) {
+        const groupsPath = path.resolve(groupsFileParam);
+        if (!fs.existsSync(groupsPath)) {
+            console.error(`Error: Groups file not found at ${groupsPath}`);
+            process.exit(1);
+        }
+        groupsMap = JSON.parse(fs.readFileSync(groupsPath, 'utf8'));
+    } else {
+        const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf')).sort();
+        if (files.length === 0) {
+            console.log(`No PDFs found in ${inputDir}`);
+            process.exit(0);
+        }
+        groupsMap["Ungrouped"] = files;
     }
 
-    console.log(`Found ${files.length} PDFs. Compiling volumes...\n`);
-
-    let currentChunkIndex = 1;
-    let currentWordCount = 0;
-    let currentByteSize = 0;
-    let mergedPdf = isDryRun ? null : await PDFDocument.create();
-    
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const filePath = path.join(inputDir, file);
-        const stat = fs.statSync(filePath);
-        const fileByteSize = stat.size;
-        const cacheKey = `${file}_${stat.size}_${Math.floor(stat.mtimeMs)}`;
-
-        let fileWordCount = 0;
-        let numPages = 1;
-        let pdfBytes = null;
+    for (const [groupName, groupFiles] of Object.entries(groupsMap)) {
+        if (groupFiles.length === 0) continue;
+        console.log(`\n===========================================`);
+        console.log(`Processing Group: ${groupName} (${groupFiles.length} files)`);
+        console.log(`===========================================\n`);
         
-        if (cache[cacheKey]) {
-            fileWordCount = cache[cacheKey].wordCount;
-            numPages = cache[cacheKey].numPages || 1;
-            console.log(`  [${i+1}/${files.length}] Cached ${file} - Words: ${fileWordCount} (Pages: ${numPages})`);
-        } else {
-            pdfBytes = fs.readFileSync(filePath);
-            try {
-                const data = await pdfParse(pdfBytes);
-                fileWordCount = data.text.trim().split(/\s+/).filter(w => w.length > 0).length;
-                numPages = data.numpages || 1;
-                console.log(`  [${i+1}/${files.length}] Scanned ${file} - Words: ${fileWordCount} (Pages: ${numPages})`);
-                
-                cache[cacheKey] = { wordCount: fileWordCount, size: stat.size, numPages };
-                saveCache();
-            } catch (e) {
-                console.error(`  [!] Error parsing text for ${file}: ${e.message}`);
-                fileWordCount = 10000; // rough estimate fallback
-                numPages = 1;
-            }
-        }
+        const safeGroupName = groupName.replace(/[^a-zA-Z0-9 -_]/g, '_').replace(/_+/g, '_').trim();
+        let currentChunkIndex = 1;
+        let currentWordCount = 0;
+        let currentByteSize = 0;
+        let currentVolumeFiles = [];
 
-        const avgWordsPerPage = Math.ceil(fileWordCount / numPages);
-        const avgBytesPerPage = Math.ceil(fileByteSize / numPages);
-
-        let pdf = null;
-        if (!isDryRun) {
-            if (!pdfBytes) pdfBytes = fs.readFileSync(filePath);
-            try {
-                pdf = await PDFDocument.load(pdfBytes);
-            } catch (e) {
-                console.error(`  [!] Error loading ${file} with pdf-lib: ${e.message}`);
+        for (let i = 0; i < groupFiles.length; i++) {
+            const file = groupFiles[i];
+            const filePath = path.join(inputDir, file);
+            if (!fs.existsSync(filePath)) {
+                console.warn(`  [!] File not found, skipping: ${file}`);
                 continue;
             }
-        }
+            
+            const stat = fs.statSync(filePath);
+            const fileByteSize = stat.size;
+            const cacheKey = `${file}_${stat.size}_${Math.floor(stat.mtimeMs)}`;
 
-        let pagesToAdd = Array.from({ length: numPages }, (_, k) => k);
-
-        while (pagesToAdd.length > 0) {
-            const remainingWords = pagesToAdd.length * avgWordsPerPage;
-            const remainingBytes = pagesToAdd.length * avgBytesPerPage;
-
-            if (currentWordCount + remainingWords <= MAX_WORDS_PER_CHUNK && currentByteSize + remainingBytes <= MAX_BYTES_PER_CHUNK) {
-                // Entire remaining part of the file fits in the current volume
-                if (!isDryRun && pdf) {
-                    try {
-                        const copiedPages = await mergedPdf.copyPages(pdf, pagesToAdd);
-                        copiedPages.forEach((page) => mergedPdf.addPage(page));
-                    } catch (e) {
-                        console.error(`  [!] Error merging ${file}: ${e.message}`);
-                    }
-                }
-                currentWordCount += remainingWords;
-                currentByteSize += remainingBytes;
-                pagesToAdd = []; // Done with this file
+            let fileWordCount = 0;
+            let numPages = 1;
+            
+            if (cache[cacheKey]) {
+                fileWordCount = cache[cacheKey].wordCount;
+                numPages = cache[cacheKey].numPages || 1;
+                console.log(`  [${i+1}/${groupFiles.length}] Cached ${file} - Words: ${fileWordCount} (Pages: ${numPages})`);
             } else {
-                // Doesn't fit entirely. How many pages CAN fit?
-                let maxPagesByWords = Math.floor((MAX_WORDS_PER_CHUNK - currentWordCount) / avgWordsPerPage);
-                let maxPagesByBytes = Math.floor((MAX_BYTES_PER_CHUNK - currentByteSize) / avgBytesPerPage);
-                let pagesToTake = Math.min(maxPagesByWords, maxPagesByBytes, pagesToAdd.length);
+                const pdfBytes = fs.readFileSync(filePath);
+                try {
+                    const data = await pdfParse(pdfBytes);
+                    fileWordCount = data.text.trim().split(/\s+/).filter(w => w.length > 0).length;
+                    numPages = data.numpages || 1;
+                    console.log(`  [${i+1}/${groupFiles.length}] Scanned ${file} - Words: ${fileWordCount} (Pages: ${numPages})`);
+                    cache[cacheKey] = { wordCount: fileWordCount, size: stat.size, numPages };
+                    saveCache();
+                } catch (e) {
+                    console.error(`  [!] Error parsing text for ${file}: ${e.message}`);
+                    fileWordCount = 10000; 
+                    numPages = 1;
+                }
+            }
 
-                if (pagesToTake <= 0) {
-                    // Current volume is full, or a single page is bigger than the chunk size
-                    if (currentWordCount === 0) {
-                        // Volume is empty, take at least 1 page to avoid infinite loop
-                        pagesToTake = 1;
-                    } else {
-                        // Save current volume and start a new one
-                        const outputPath = path.join(outputDir, `NotebookLM_Volume_${currentChunkIndex}.pdf`);
-                        if (!isDryRun) {
-                            const mergedPdfBytes = await mergedPdf.save();
-                            fs.writeFileSync(outputPath, mergedPdfBytes);
-                            const sizeMb = (fs.statSync(outputPath).size / (1024 * 1024)).toFixed(2);
-                            console.log(`\n>>> Saved NotebookLM_Volume_${currentChunkIndex}.pdf (${sizeMb} MB) | Total Words: ~${currentWordCount}\n`);
+            const avgWordsPerPage = Math.ceil(fileWordCount / numPages);
+            const avgBytesPerPage = Math.ceil(fileByteSize / numPages);
+
+            let remainingPages = numPages;
+            let currentStartPage = 1;
+
+            while (remainingPages > 0) {
+                const remainingWords = remainingPages * avgWordsPerPage;
+                const remainingBytes = remainingPages * avgBytesPerPage;
+
+                if (currentWordCount + remainingWords <= MAX_WORDS_PER_CHUNK && currentByteSize + remainingBytes <= MAX_BYTES_PER_CHUNK) {
+                    currentVolumeFiles.push({
+                        path: filePath,
+                        startPage: currentStartPage,
+                        endPage: currentStartPage + remainingPages - 1,
+                        originalName: file,
+                        isFullFile: (currentStartPage === 1 && remainingPages === numPages)
+                    });
+                    currentWordCount += remainingWords;
+                    currentByteSize += remainingBytes;
+                    remainingPages = 0;
+                } else {
+                    let maxPagesByWords = Math.floor((MAX_WORDS_PER_CHUNK - currentWordCount) / avgWordsPerPage);
+                    let maxPagesByBytes = Math.floor((MAX_BYTES_PER_CHUNK - currentByteSize) / avgBytesPerPage);
+                    let pagesToTake = Math.min(maxPagesByWords, maxPagesByBytes, remainingPages);
+
+                    if (pagesToTake <= 0) {
+                        if (currentWordCount === 0) {
+                            pagesToTake = 1;
                         } else {
-                            console.log(`\n>>> [DRY RUN] Would save NotebookLM_Volume_${currentChunkIndex}.pdf | Total Words: ~${currentWordCount}\n`);
+                            await finalizeVolume(safeGroupName, currentChunkIndex, currentVolumeFiles, currentWordCount);
+                            currentChunkIndex++;
+                            currentVolumeFiles = [];
+                            currentWordCount = 0;
+                            currentByteSize = 0;
+                            continue;
                         }
-                        
-                        currentChunkIndex++;
-                        mergedPdf = isDryRun ? null : await PDFDocument.create();
-                        currentWordCount = 0;
-                        currentByteSize = 0;
-                        continue; // Re-evaluate how many pages we can take with the fresh volume
                     }
-                }
 
-                // Slice the pages we can fit
-                const slice = pagesToAdd.slice(0, pagesToTake);
-                pagesToAdd = pagesToAdd.slice(pagesToTake);
-
-                if (!isDryRun && pdf) {
-                    try {
-                        const copiedPages = await mergedPdf.copyPages(pdf, slice);
-                        copiedPages.forEach((page) => mergedPdf.addPage(page));
-                    } catch (e) {
-                        console.error(`  [!] Error merging ${file}: ${e.message}`);
-                    }
+                    currentVolumeFiles.push({
+                        path: filePath,
+                        startPage: currentStartPage,
+                        endPage: currentStartPage + pagesToTake - 1,
+                        originalName: file,
+                        isFullFile: false
+                    });
+                    currentWordCount += pagesToTake * avgWordsPerPage;
+                    currentByteSize += pagesToTake * avgBytesPerPage;
+                    remainingPages -= pagesToTake;
+                    currentStartPage += pagesToTake;
                 }
-                
-                currentWordCount += slice.length * avgWordsPerPage;
-                currentByteSize += slice.length * avgBytesPerPage;
             }
         }
-    }
-    
-    if (currentWordCount > 0) {
-        const outputPath = path.join(outputDir, `NotebookLM_Volume_${currentChunkIndex}.pdf`);
-        if (!isDryRun) {
-            const mergedPdfBytes = await mergedPdf.save();
-            fs.writeFileSync(outputPath, mergedPdfBytes);
-            const sizeMb = (fs.statSync(outputPath).size / (1024 * 1024)).toFixed(2);
-            console.log(`\n>>> Saved NotebookLM_Volume_${currentChunkIndex}.pdf (${sizeMb} MB) | Total Words: ~${currentWordCount}\n`);
-        } else {
-            console.log(`\n>>> [DRY RUN] Would save NotebookLM_Volume_${currentChunkIndex}.pdf | Total Words: ~${currentWordCount}\n`);
+        
+        if (currentVolumeFiles.length > 0) {
+            await finalizeVolume(safeGroupName, currentChunkIndex, currentVolumeFiles, currentWordCount);
         }
     }
 
