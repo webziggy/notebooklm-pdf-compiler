@@ -2,7 +2,7 @@
 
 A standalone, multi-threaded CLI tool that stitches massive directories of PDFs together into beautifully optimized "Volumes" that perfectly comply with Google NotebookLM's strict upload limits.
 
-NotebookLM has incredibly strict constraints that make uploading bulk documents difficult:
+NotebookLM has incredibly strict constraints that make uploading bulk documents difficult *(limits understood to be accurate at the time of writing, July 2026)*:
 1. **Maximum 500,000 words** per source.
 2. **Maximum 200MB** file size per source.
 3. **Hard Limit of 50 sources** per notebook.
@@ -13,7 +13,7 @@ If you are uploading massive datasets, archives, or textbooks, manually chunking
 This tool heavily leverages system binaries for safe, high-fidelity PDF manipulation without destroying memory limits. You must have the following installed on your system PATH:
 *   **Ghostscript (`gs`)**: Used for slicing and stitching PDFs safely.
 *   **ExifTool (`exiftool`)**: Used to extract and inject XMP metadata across stitched volumes.
-*   *(Mac Only)* **Clop (`clop`)**: Highly recommended. If installed, the compiler uses Clop for vastly superior image compression.
+*   *(Mac Only)* **Clop (`clop`)**: Highly recommended. If installed, the compiler uses Clop for vastly superior image compression. You can find more about it on their [main website](https://lowtechguys.com/clop/) or their [GitHub repository](https://github.com/FuzzyIdeas/Clop).
 
 ## Installation
 
