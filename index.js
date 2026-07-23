@@ -22,8 +22,14 @@ if (!isMainThread) {
             if (compress) {
                 const compPath = path.join(tempDir, 'compressed_' + file.replace(/[^a-zA-Z0-9.-]/g, '_'));
                 if (!fs.existsSync(compPath)) {
-                    const cmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${compPath}" "${filePath}"`;
-                    execSync(cmd, { stdio: 'ignore' });
+                    // Default to Clop for vastly superior image compression, fallback to GS if clop fails
+                    const clopCmd = `nice -n 10 clop optimise pdf --output "${compPath}" "${filePath}"`;
+                    const gsCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${compPath}" "${filePath}"`;
+                    try {
+                        execSync(clopCmd, { stdio: 'ignore' });
+                    } catch (e) {
+                        execSync(gsCmd, { stdio: 'ignore' });
+                    }
                 }
                 activePath = compPath;
             }
