@@ -34,7 +34,7 @@ You can now execute the compiler anywhere on your machine simply by typing:
 ```bash
 notebooklm-compiler [options]
 ```
-*Note: The global CLI automatically provisions an 8GB V8 memory sandbox under the hood so you never encounter `heap out of memory` errors.*
+*Note: The global CLI automatically removes Node's artificial memory limits by provisioning an 8GB V8 sandbox under the hood so you never encounter `heap out of memory` errors on massive PDFs. This does **not** pre-allocate 8GB of RAM, so it is completely safe to run on computers with lower physical memory.*
 
 ## Core Workflow
 
