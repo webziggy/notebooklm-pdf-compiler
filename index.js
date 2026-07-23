@@ -101,7 +101,7 @@ const args = process.argv.slice(2);
 
 const validOptions = new Set([
     '--help', '-h', '--input', '--output', '--logs', '--groups', 
-    '--suggest-groups', '--smart-groups', '--compress', '--dry-run', 
+    '--suggest-groups', '--smart-groups', '--similarity', '--compress', '--dry-run', 
     '--max-words', '--max-mb', '--timeout'
 ]);
 
@@ -130,6 +130,7 @@ Options:
   --groups <file>    Path to a JSON file mapping folders/groups to file arrays.
   --suggest-groups   Automatically scan input/ and generate 'groups.json' using regex
   --smart-groups     Intelligently cluster files using Machine Learning (AGNES)
+  --similarity <num> Tune the ML clustering strictness from 0.1 to 0.9 (default: 0.4)
   --compress         Enable Ghostscript pre-compression to maximize source slot efficiency
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
@@ -237,8 +238,12 @@ if (args.includes('--suggest-groups') || args.includes('--smart-groups')) {
         // Run AGNES hierarchical clustering
         const tree = hclust.agnes(distanceMatrix, { method: 'complete' });
         
-        // We cut the tree at a distance of 0.6 (i.e. strings must be at least 40% similar)
-        const clusters = tree.cut(0.6); 
+        // Convert user similarity preference (e.g. 0.4) to distance cutoff (0.6)
+        const similarityTarget = parseFloat(getArgValue('--similarity', '0.4'));
+        const distanceCut = Math.max(0.01, Math.min(0.99, 1.0 - similarityTarget));
+        
+        console.log(`Using similarity threshold of ${similarityTarget} (Distance Cutoff: ${distanceCut.toFixed(2)})`);
+        const clusters = tree.cut(distanceCut); 
         
         clusters.forEach((cluster, idx) => {
             const clusterName = `Cluster_${idx + 1}`;

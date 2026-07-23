@@ -74,6 +74,13 @@ If your files don't have neat, predictable prefixes, you can use the Machine Lea
 notebooklm-compiler --smart-groups
 ```
 
+**Tuning the ML Strictness:**
+By default, files must be at least `0.4` (40%) similar to be clustered together. If you find that the algorithm is shattering your files into dozens of tiny 1-2 file groups, your filenames are too diverse. You can loosen the algorithm by lowering the required similarity:
+```bash
+notebooklm-compiler --smart-groups --similarity 0.2
+```
+*(Conversely, if it lumps everything into one massive group, raise the similarity to `0.6` or `0.8`)*
+
 #### Understanding the Output
 When you run either command, the compiler will output a beautiful ASCII tree report directly in your terminal so you can visually verify why things were grouped together. It will then save the physical map to `groups.json`.
 
