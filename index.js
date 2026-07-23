@@ -22,6 +22,10 @@ if (!isMainThread) {
             const statOriginal = fs.statSync(filePath);
             
             if (compress) {
+                if (statOriginal.size < 1024) {
+                    throw new Error("File is corrupted or empty (under 1KB). Skipping compression.");
+                }
+
                 const compPath = path.join(tempDir, 'compressed_' + file.replace(/[^a-zA-Z0-9.-]/g, '_'));
                 const tmpCompPath = compPath + '.tmp';
                 if (!fs.existsSync(compPath)) {
@@ -30,9 +34,13 @@ if (!isMainThread) {
                     const clopCmd = `nice -n 10 clop optimise pdf --output "${tmpCompPath}" "${filePath}"`;
                     const gsCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${tmpCompPath}" "${filePath}"`;
                     try {
-                        execSync(clopCmd, { stdio: 'ignore' });
+                        execSync(clopCmd, { stdio: 'ignore', timeout: 180000 }); // 3 min max
                     } catch (e) {
-                        execSync(gsCmd, { stdio: 'ignore' });
+                        try {
+                            execSync(gsCmd, { stdio: 'ignore', timeout: 180000 });
+                        } catch (innerE) {
+                            throw new Error("Both Clop and Ghostscript failed or timed out.");
+                        }
                     }
                     if (fs.existsSync(tmpCompPath)) {
                         fs.renameSync(tmpCompPath, compPath);
