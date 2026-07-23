@@ -36,7 +36,24 @@ notebooklm-compiler [options]
 ```
 *Note: The global CLI automatically removes Node's artificial memory limits by provisioning an 8GB V8 sandbox under the hood so you never encounter `heap out of memory` errors on massive PDFs. This does **not** pre-allocate 8GB of RAM, so it is completely safe to run on computers with lower physical memory.*
 
-## Core Workflow
+## First-Time User Guide (Quick Start)
+If you've just installed the tool, here is the exact step-by-step workflow you need to run to compile your first batch of PDFs:
+
+1. **Create an Input Folder:** Create a folder named `input` in your current working directory (e.g., `mkdir input`).
+2. **Add Your PDFs:** Drag and drop all the massive, unorganized PDF files you want to compile into that `input` folder.
+3. **Generate Groups:** Run the following command. The compiler will scan your `input` folder and try to intelligently group them together into logical volumes based on their file names. It will generate a `groups.json` file.
+   ```bash
+   notebooklm-compiler --suggest-groups
+   ```
+4. **Compile:** Once you are happy with how `groups.json` looks, run the final compilation! This will heavily compress the files in the background and stitch them together into perfectly sized NotebookLM volumes.
+   ```bash
+   notebooklm-compiler --groups groups.json --compress
+   ```
+5. **Get Your Results:** You will find your fully compiled, optimized, and ready-to-upload PDFs sitting in the automatically generated `output/` directory!
+
+---
+
+## Advanced Core Workflow
 
 ### 1. Generating Groups (Optional)
 If you want your PDFs stitched into logical categories rather than one massive clump, you can auto-generate a grouping map. 
