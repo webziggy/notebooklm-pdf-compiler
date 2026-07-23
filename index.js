@@ -2,6 +2,7 @@
 
 const util = require('util');
 const pdfParse = require('pdf-parse');
+const { PDFDocument } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -291,23 +292,35 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
             let fileWordCount = 0;
             let numPages = 1;
             
+            const sizeMb = (stat.size / (1024 * 1024)).toFixed(2);
+
             if (cache[cacheKey]) {
                 fileWordCount = cache[cacheKey].wordCount;
                 numPages = cache[cacheKey].numPages || 1;
-                console.log(`  [${i+1}/${groupFiles.length}] Cached ${file} - Words: ${fileWordCount} (Pages: ${numPages})`);
+                console.log(`  [${i+1}/${groupFiles.length}] Cached ${file} - Words: ${fileWordCount} (Pages: ${numPages}, Size: ${sizeMb} MB)`);
             } else {
                 const pdfBytes = fs.readFileSync(filePath);
                 try {
                     const data = await pdfParse(pdfBytes);
                     fileWordCount = data.text.trim().split(/\s+/).filter(w => w.length > 0).length;
                     numPages = data.numpages || 1;
-                    console.log(`  [${i+1}/${groupFiles.length}] Scanned ${file} - Words: ${fileWordCount} (Pages: ${numPages})`);
+                    console.log(`  [${i+1}/${groupFiles.length}] Scanned ${file} - Words: ${fileWordCount} (Pages: ${numPages}, Size: ${sizeMb} MB)`);
                     cache[cacheKey] = { wordCount: fileWordCount, size: stat.size, numPages };
                     saveCache();
                 } catch (e) {
-                    console.error(`  [!] Error parsing text for ${file}: ${e.message}`);
-                    fileWordCount = 10000; 
-                    numPages = 1;
+                    console.error(`  [!] Error parsing text for ${file}: ${e.message}. Attempting fallback...`);
+                    try {
+                        const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+                        numPages = pdfDoc.getPageCount();
+                        fileWordCount = Math.floor(stat.size / 150); // Rough estimate: 150 bytes per word
+                        console.log(`  [${i+1}/${groupFiles.length}] Fallback Scanned ${file} - Est. Words: ${fileWordCount} (Pages: ${numPages}, Size: ${sizeMb} MB)`);
+                        cache[cacheKey] = { wordCount: fileWordCount, size: stat.size, numPages };
+                        saveCache();
+                    } catch (innerErr) {
+                        console.error(`  [!] Fallback failed for ${file}. Assuming 1 page and maxing out chunk.`);
+                        fileWordCount = MAX_WORDS_PER_CHUNK; // Force into its own chunk to be safe
+                        numPages = 1;
+                    }
                 }
             }
 
