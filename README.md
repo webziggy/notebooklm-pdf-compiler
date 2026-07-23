@@ -58,6 +58,11 @@ If you've just installed the tool, here is the exact step-by-step workflow you n
 ### 1. Generating Groups (Optional)
 If you want your PDFs stitched into logical categories rather than one massive clump, you must first generate a grouping map. The compiler offers two different ways to do this:
 
+> [!TIP]
+> **Which method should I use?**
+> *   **Use Option A (`--suggest-groups`)** if your files have clean, predictable prefixes (e.g., `INV-001.pdf`, `INV-002.pdf`, `HR-001.pdf`). Regular Expressions are flawless for structured data.
+> *   **Use Option B (`--smart-groups`)** if your files are chaotic, inconsistently named, or lack uniform prefixes (e.g., `Invoice_Jan.pdf`, `Receipt_Jan_2024.pdf`, `Jan_Final_Bill.pdf`). Machine Learning clustering thrives on messy data.
+
 #### Option A: Pattern Matching (`--suggest-groups`)
 This mode uses simple Regular Expressions to group files by prefix.
 ```bash
