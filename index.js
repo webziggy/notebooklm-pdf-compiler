@@ -27,7 +27,7 @@ if (!isMainThread) {
                 }
 
                 const compPath = path.join(tempDir, 'compressed_' + file.replace(/[^a-zA-Z0-9.-]/g, '_'));
-                const tmpCompPath = compPath + '_tmp.pdf';
+                const tmpCompPath = path.join(tempDir, `tmp_${Date.now()}_${Math.floor(Math.random()*1000)}.pdf`);
                 if (!fs.existsSync(compPath)) {
                     parentPort.postMessage({ type: 'log', message: `[Worker] Compressing ${file} (Original Size: ${(statOriginal.size / (1024*1024)).toFixed(2)} MB)...` });
                     // Default to Clop for vastly superior image compression, fallback to GS if clop fails
