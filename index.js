@@ -36,10 +36,16 @@ if (!isMainThread) {
                     try {
                         execSync(clopCmd, { stdio: 'ignore', timeout: timeout }); 
                     } catch (e) {
+                        if (e.code === 'ETIMEDOUT' || e.signal === 'SIGTERM') {
+                            throw new Error('TIMEOUT_FATAL');
+                        }
                         try {
                             execSync(gsCmd, { stdio: 'ignore', timeout: timeout });
                         } catch (innerE) {
-                            throw new Error("Both Clop and Ghostscript failed or timed out.");
+                            if (innerE.code === 'ETIMEDOUT' || innerE.signal === 'SIGTERM') {
+                                throw new Error('TIMEOUT_FATAL');
+                            }
+                            throw new Error("Both Clop and Ghostscript failed.");
                         }
                     }
                     if (fs.existsSync(tmpCompPath)) {
@@ -77,7 +83,7 @@ if (!isMainThread) {
             
             parentPort.postMessage({ success: true, wordCount, numPages, size: finalSize, compressedPath: compress ? activePath : null });
         } catch (err) {
-            parentPort.postMessage({ success: false, error: err.message });
+            parentPort.postMessage({ success: false, error: err.message, isFatal: err.message === 'TIMEOUT_FATAL' });
         }
     }
     
@@ -416,6 +422,15 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
                     console.log(`  [${completed}/${tasks.length}] Processed ${task.file} - Words: ${result.wordCount} (Pages: ${result.numPages}, Size: ${sizeMb} MB)`);
                 } else {
                     console.error(`  [!] Failed to process ${task.file}: ${result.error}`);
+                    if (result.isFatal) {
+                        console.error(`\n[CRITICAL ERROR] Compression timed out on ${task.file}.`);
+                        console.error(`The process was forcefully killed because it exceeded the ${compressionTimeoutMs / 60000} minute limit.`);
+                        console.error(`ACTION REQUIRED:`);
+                        console.error(`1. If this is a massive, valid PDF, increase the timeout: --timeout ${Math.ceil((compressionTimeoutMs / 60000) * 2)}`);
+                        console.error(`2. If this is a corrupted/empty file, remove it from your input folder.`);
+                        console.error(`Exiting compiler to prevent infinite hangs.\n`);
+                        process.exit(1);
+                    }
                 }
             }
         });
