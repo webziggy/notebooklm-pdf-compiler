@@ -39,10 +39,18 @@ notebooklm-compiler [options]
 ## Core Workflow
 
 ### 1. Generating Groups (Optional)
-If you want your PDFs stitched into logical categories rather than one massive clump, you can auto-generate a grouping map.
+If you want your PDFs stitched into logical categories rather than one massive clump, you can auto-generate a grouping map. 
 ```bash
 notebooklm-compiler --suggest-groups
 ```
+By default, this looks for an existing `files-cache.json` (exported from Box). If one doesn't exist, it falls back to a default Regular Expression (`^([A-Za-z]+)-`) which groups files by their prefix (e.g., `DOC-001.pdf` and `DOC-002.pdf` become group "DOC").
+
+**Custom Regex Grouping:**
+You can also explicitly pass your own Regular Expression to define how files should be grouped! The compiler will group files based on the first captured group `( ... )` in your regex.
+```bash
+notebooklm-compiler --suggest-groups "^([A-Za-z0-9]+)_"
+```
+
 This scans your `input/` folder and creates a `groups.json` file. You can manually edit this JSON file to dictate exactly which PDFs get stitched together into specific volumes.
 
 ### 2. Compiling and Compressing

@@ -105,7 +105,10 @@ Options:
 
 const getArgValue = (flag, defaultValue) => {
     const index = args.indexOf(flag);
-    return index !== -1 && args[index + 1] ? args[index + 1] : defaultValue;
+    if (index !== -1 && args[index + 1] && !args[index + 1].startsWith('-')) {
+        return args[index + 1];
+    }
+    return defaultValue;
 };
 
 const inputDir = path.resolve(getArgValue('--input', './input'));
