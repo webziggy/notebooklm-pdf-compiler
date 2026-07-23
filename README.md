@@ -56,19 +56,41 @@ If you've just installed the tool, here is the exact step-by-step workflow you n
 ## Advanced Core Workflow
 
 ### 1. Generating Groups (Optional)
-If you want your PDFs stitched into logical categories rather than one massive clump, you can auto-generate a grouping map. 
+If you want your PDFs stitched into logical categories rather than one massive clump, you must first generate a grouping map. The compiler offers two different ways to do this:
+
+#### Option A: Pattern Matching (`--suggest-groups`)
+This mode uses simple Regular Expressions to group files by prefix.
 ```bash
 notebooklm-compiler --suggest-groups
 ```
-By default, this looks for an existing `files-cache.json` (exported from Box). If one doesn't exist, it falls back to a default Regular Expression (`^([A-Za-z]+)-`) which groups files by their prefix (e.g., `DOC-001.pdf` and `DOC-002.pdf` become group "DOC").
-
-**Custom Regex Grouping:**
-You can also explicitly pass your own Regular Expression to define how files should be grouped! The compiler will group files based on the first captured group `( ... )` in your regex.
+By default, this groups files by any alphabetical prefix (e.g., `DOC-001.pdf` and `DOC-002.pdf` become group "DOC"). You can explicitly pass your own Regex:
 ```bash
 notebooklm-compiler --suggest-groups "^([A-Za-z0-9]+)_"
 ```
 
-This scans your `input/` folder and creates a `groups.json` file. You can manually edit this JSON file to dictate exactly which PDFs get stitched together into specific volumes.
+#### Option B: AI Clustering (`--smart-groups`)
+If your files don't have neat, predictable prefixes, you can use the Machine Learning clustering mode. This uses the AGNES (Agglomerative Nesting) algorithm to mathematically group files that have highly similar file names (e.g., matching dates or topic words).
+```bash
+notebooklm-compiler --smart-groups
+```
+
+#### Understanding the Output
+When you run either command, the compiler will output a beautiful ASCII tree report directly in your terminal so you can visually verify why things were grouped together. It will then save the physical map to `groups.json`.
+
+**The `groups.json` Schema:**
+The generated file is a simple JSON object where the "Keys" are the names of the final merged PDFs, and the "Values" are arrays of the actual files that belong in them.
+```json
+{
+  "Cluster_1": [
+    "Medical_Record_1.pdf",
+    "Medical_Record_2.pdf"
+  ],
+  "Ungrouped": [
+    "Random_Receipt.pdf"
+  ]
+}
+```
+*Crucial Step: You can manually open and edit `groups.json` in any text editor before compiling to perfect the arrays!*
 
 ### 2. Compiling and Compressing
 To run the full compiler using your groups file:

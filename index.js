@@ -113,7 +113,8 @@ Options:
   --output <dir>     Directory to save the compiled volumes (default: ./output)
   --logs <dir>       Directory to save the compiler logs (default: ./logs)
   --groups <file>    Path to a JSON file mapping folders/groups to file arrays.
-  --suggest-groups   Automatically scan input/ and generate 'groups.json'
+  --suggest-groups   Automatically scan input/ and generate 'groups.json' using regex
+  --smart-groups     Intelligently cluster files using Machine Learning (AGNES)
   --compress         Enable Ghostscript pre-compression to maximize source slot efficiency
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
@@ -189,34 +190,69 @@ if (!fs.existsSync(inputDir)) {
 }
 
 // Phase 2.1: Auto-Grouping logic
-if (args.includes('--suggest-groups')) {
+if (args.includes('--suggest-groups') || args.includes('--smart-groups')) {
+    const isSmartGroups = args.includes('--smart-groups');
     const groupsOutput = 'groups.json';
     const groups = {};
     const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
     const fileSet = new Set(files);
     
-    const cachePath = path.join(inputDir, 'files-cache.json');
-    if (fs.existsSync(cachePath)) {
-        console.log(`Found files-cache.json, building groups based on Box folders...`);
-        const boxCache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-        boxCache.forEach(item => {
-            const filename = item.name + '.pdf';
-            if (fileSet.has(filename)) {
-                let folder = item.folder || "Ungrouped";
-                folder = folder.replace(/[^a-zA-Z0-9 -_]/g, '_').trim(); // sanitize
-                if (!groups[folder]) groups[folder] = [];
-                groups[folder].push(filename);
+    if (isSmartGroups) {
+        console.log(`\nAnalyzing ${files.length} files using Machine Learning (AGNES) clustering...`);
+        const stringSimilarity = require('string-similarity');
+        const hclust = require('ml-hclust');
+
+        // Create distance matrix (1 - similarity)
+        const distanceMatrix = [];
+        for (let i = 0; i < files.length; i++) {
+            const row = [];
+            for (let j = 0; j < files.length; j++) {
+                if (i === j) {
+                    row.push(0);
+                } else if (j < i) {
+                    row.push(distanceMatrix[j][i]); // Symmetry
+                } else {
+                    const sim = stringSimilarity.compareTwoStrings(files[i], files[j]);
+                    row.push(1 - sim); // distance = 1 - similarity
+                }
             }
+            distanceMatrix.push(row);
+        }
+
+        // Run AGNES hierarchical clustering
+        const tree = hclust.agnes(distanceMatrix, { method: 'complete' });
+        
+        // We cut the tree at a distance of 0.6 (i.e. strings must be at least 40% similar)
+        const clusters = tree.cut(0.6); 
+        
+        clusters.forEach((cluster, idx) => {
+            const clusterName = `Cluster_${idx + 1}`;
+            groups[clusterName] = cluster.indices().map(fileIdx => files[fileIdx]).sort();
         });
     } else {
-        const regexStr = getArgValue('--suggest-groups', '^([A-Za-z]+)-');
-        const regex = new RegExp(regexStr);
-        files.forEach(f => {
-            const match = f.match(regex);
-            const groupName = match ? match[1] : 'Ungrouped';
-            if (!groups[groupName]) groups[groupName] = [];
-            groups[groupName].push(f);
-        });
+        const cachePath = path.join(inputDir, 'files-cache.json');
+        if (fs.existsSync(cachePath)) {
+            console.log(`Found files-cache.json, building groups based on Box folders...`);
+            const boxCache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+            boxCache.forEach(item => {
+                const filename = item.name + '.pdf';
+                if (fileSet.has(filename)) {
+                    let folder = item.folder || "Ungrouped";
+                    folder = folder.replace(/[^a-zA-Z0-9 -_]/g, '_').trim(); // sanitize
+                    if (!groups[folder]) groups[folder] = [];
+                    groups[folder].push(filename);
+                }
+            });
+        } else {
+            const regexStr = getArgValue('--suggest-groups', '^([A-Za-z]+)-');
+            const regex = new RegExp(regexStr);
+            files.forEach(f => {
+                const match = f.match(regex);
+                const groupName = match ? match[1] : 'Ungrouped';
+                if (!groups[groupName]) groups[groupName] = [];
+                groups[groupName].push(f);
+            });
+        }
     }
 
     const groupedFiles = new Set(Object.values(groups).flat());
@@ -226,9 +262,26 @@ if (args.includes('--suggest-groups')) {
     });
     if (groups["Ungrouped"].length === 0) delete groups["Ungrouped"];
 
+    // ASCII Tree Reporting
+    console.log('\nGroups Generated:');
+    const groupKeys = Object.keys(groups);
+    groupKeys.forEach((key, gIdx) => {
+        const isLastGroup = gIdx === groupKeys.length - 1;
+        const gPrefix = isLastGroup ? '└── ' : '├── ';
+        const cPrefix = isLastGroup ? '    ' : '│   ';
+        console.log(`${gPrefix}${key} (${groups[key].length} files)`);
+        
+        groups[key].forEach((file, fIdx) => {
+            const isLastFile = fIdx === groups[key].length - 1;
+            const fPrefix = isLastFile ? '└── ' : '├── ';
+            console.log(`${cPrefix}${fPrefix}${file}`);
+        });
+    });
+
     fs.writeFileSync(groupsOutput, JSON.stringify(groups, null, 2));
-    console.log(`\nCreated ${groupsOutput}!`);
-    console.log(`You can now run: node index.js --groups ${groupsOutput}\n`);
+    console.log(`\nSaved to ${groupsOutput}!`);
+    console.log(`You can manually edit ${groupsOutput} before running the compiler.`);
+    console.log(`To compile, run: notebooklm-compiler --groups ${groupsOutput} --compress\n`);
     process.exit(0);
 }
 
