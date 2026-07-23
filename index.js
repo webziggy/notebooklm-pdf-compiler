@@ -98,6 +98,21 @@ let MAX_WORDS_PER_CHUNK = 450000;
 let MAX_BYTES_PER_CHUNK = 180 * 1024 * 1024; // 180 MB
 
 const args = process.argv.slice(2);
+
+const validOptions = new Set([
+    '--help', '-h', '--input', '--output', '--logs', '--groups', 
+    '--suggest-groups', '--smart-groups', '--compress', '--dry-run', 
+    '--max-words', '--max-mb', '--timeout'
+]);
+
+for (const arg of args) {
+    if (arg.startsWith('-') && !validOptions.has(arg)) {
+        console.error(`\n[!] Error: Unknown option '${arg}'`);
+        console.log(`Run 'notebooklm-compiler --help' for usage instructions.\n`);
+        process.exit(1);
+    }
+}
+
 if (args.includes('--help') || args.includes('-h')) {
     console.log(`
 NotebookLM PDF Compiler
@@ -106,7 +121,7 @@ Stitches multiple PDFs together into chunked volumes that perfectly comply with
 Google NotebookLM's strict upload limits (max 500,000 words & max 200MB per file).
 
 Usage:
-  node --max-old-space-size=8192 index.js [options]
+  notebooklm-compiler [options]
 
 Options:
   --input <dir>      Directory containing the source PDFs (default: ./input)
