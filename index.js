@@ -41,17 +41,19 @@ const getArgValue = (flag, defaultValue) => {
 
 const inputDir = path.resolve(getArgValue('--input', './input'));
 const outputDir = path.resolve(getArgValue('--output', './output'));
+const logsDir = path.resolve(getArgValue('--logs', './logs'));
 const isDryRun = args.includes('--dry-run');
 
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 
 // Setup File Logging with Rotation
-const logFile = path.join(outputDir, 'compiler.log');
+const logFile = path.join(logsDir, 'compiler.log');
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
 
 function rotateLog() {
     if (fs.existsSync(logFile) && fs.statSync(logFile).size > MAX_LOG_SIZE) {
-        fs.renameSync(logFile, path.join(outputDir, `compiler_${Date.now()}.log`));
+        fs.renameSync(logFile, path.join(logsDir, `compiler_${Date.now()}.log`));
     }
 }
 
