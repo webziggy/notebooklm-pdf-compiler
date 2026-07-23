@@ -4,7 +4,7 @@
   "description": "Stitch massive PDF directories into perfectly chunked volumes that comply with Google NotebookLM's strict 500,000 word and 200MB limits.",
   "main": "index.js",
   "bin": {
-    "notebooklm-compiler": "./index.js"
+    "notebooklm-compiler": "./launcher.js"
   },
   "scripts": {
     "start": "node --max-old-space-size=8192 index.js"
