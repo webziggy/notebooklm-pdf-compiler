@@ -59,6 +59,12 @@ To run the full compiler using your groups file:
 notebooklm-compiler --groups groups.json --compress
 ```
 
+### 3. Hangs and Corrupt Files (Robust Error Handling)
+If your input directory contains fundamentally corrupted PDFs, empty shells, or files that cause underlying compression engines (like Clop or Ghostscript) to infinitely freeze, the compiler will protect itself automatically:
+- **Corrupt File Bouncer:** The compiler scans the physical byte size of your input PDFs. If a file is under 1KB (physically impossible for a valid PDF), it immediately throws an error and safely skips it without crashing the run.
+- **Aggressive Timeouts:** The compiler enforces a strict timeout (`5` minutes by default, configurable via `--timeout`) per file. If a file causes the compression engine to hang indefinitely, the worker thread will aggressively `SIGKILL` the engine, safely abort the entire compiler run with a `[CRITICAL ERROR]`, and instruct you on what to do.
+- **Atomic Writes:** Compressed files are written to randomized temporary names and only renamed to their final path upon 100% successful compression. If you forcibly abort the script (or if a timeout occurs), there will be no corrupted partial files in your cache to break future runs.
+
 ### CLI Options
 
 | Flag | Description | Default |
