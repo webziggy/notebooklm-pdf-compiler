@@ -34,15 +34,15 @@ if (!isMainThread) {
                     const clopCmd = `nice -n 10 clop optimise pdf --output "${tmpCompPath}" "${filePath}"`;
                     const gsCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${tmpCompPath}" "${filePath}"`;
                     try {
-                        execSync(clopCmd, { stdio: 'ignore', timeout: timeout }); 
+                        execSync(clopCmd, { stdio: 'ignore', timeout: timeout, killSignal: 'SIGKILL' }); 
                     } catch (e) {
-                        if (e.code === 'ETIMEDOUT' || e.signal === 'SIGTERM') {
+                        if (e.code === 'ETIMEDOUT' || e.signal === 'SIGKILL') {
                             throw new Error('TIMEOUT_FATAL');
                         }
                         try {
-                            execSync(gsCmd, { stdio: 'ignore', timeout: timeout });
+                            execSync(gsCmd, { stdio: 'ignore', timeout: timeout, killSignal: 'SIGKILL' });
                         } catch (innerE) {
-                            if (innerE.code === 'ETIMEDOUT' || innerE.signal === 'SIGTERM') {
+                            if (innerE.code === 'ETIMEDOUT' || innerE.signal === 'SIGKILL') {
                                 throw new Error('TIMEOUT_FATAL');
                             }
                             throw new Error("Both Clop and Ghostscript failed.");
