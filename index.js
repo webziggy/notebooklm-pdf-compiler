@@ -65,21 +65,24 @@ console.log = function(...args) {
     rotateLog();
     const msg = util.format(...args);
     originalLog(msg);
-    fs.appendFileSync(logFile, msg + '\n');
+    const ts = new Date().toISOString();
+    fs.appendFileSync(logFile, `[${ts}] ${msg}\n`);
 };
 
 console.warn = function(...args) {
     rotateLog();
     const msg = util.format(...args);
     originalWarn(msg);
-    fs.appendFileSync(logFile, '[WARN] ' + msg + '\n');
+    const ts = new Date().toISOString();
+    fs.appendFileSync(logFile, `[${ts}] [WARN] ${msg}\n`);
 };
 
 console.error = function(...args) {
     rotateLog();
     const msg = util.format(...args);
     originalError(msg);
-    fs.appendFileSync(logFile, '[ERROR] ' + msg + '\n');
+    const ts = new Date().toISOString();
+    fs.appendFileSync(logFile, `[${ts}] [ERROR] ${msg}\n`);
 };
 
 if (args.includes('--max-words')) MAX_WORDS_PER_CHUNK = parseInt(getArgValue('--max-words', MAX_WORDS_PER_CHUNK), 10);
