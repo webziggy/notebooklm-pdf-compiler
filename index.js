@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const util = require('util');
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
 const path = require('path');
@@ -41,6 +42,43 @@ const getArgValue = (flag, defaultValue) => {
 const inputDir = path.resolve(getArgValue('--input', './input'));
 const outputDir = path.resolve(getArgValue('--output', './output'));
 const isDryRun = args.includes('--dry-run');
+
+if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+// Setup File Logging with Rotation
+const logFile = path.join(outputDir, 'compiler.log');
+const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
+
+function rotateLog() {
+    if (fs.existsSync(logFile) && fs.statSync(logFile).size > MAX_LOG_SIZE) {
+        fs.renameSync(logFile, path.join(outputDir, `compiler_${Date.now()}.log`));
+    }
+}
+
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+console.log = function(...args) {
+    rotateLog();
+    const msg = util.format(...args);
+    originalLog(msg);
+    fs.appendFileSync(logFile, msg + '\n');
+};
+
+console.warn = function(...args) {
+    rotateLog();
+    const msg = util.format(...args);
+    originalWarn(msg);
+    fs.appendFileSync(logFile, '[WARN] ' + msg + '\n');
+};
+
+console.error = function(...args) {
+    rotateLog();
+    const msg = util.format(...args);
+    originalError(msg);
+    fs.appendFileSync(logFile, '[ERROR] ' + msg + '\n');
+};
 
 if (args.includes('--max-words')) MAX_WORDS_PER_CHUNK = parseInt(getArgValue('--max-words', MAX_WORDS_PER_CHUNK), 10);
 if (args.includes('--max-mb')) MAX_BYTES_PER_CHUNK = parseInt(getArgValue('--max-mb', 180), 10) * 1024 * 1024;
@@ -95,7 +133,6 @@ if (args.includes('--suggest-groups')) {
     process.exit(0);
 }
 
-if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
 const CACHE_FILE = path.join(outputDir, '.compiler-cache.json');
 let cache = {};
