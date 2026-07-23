@@ -26,3 +26,10 @@ Not all PDFs are perfectly formed. `pdf-parse` will occasionally throw critical 
 ## 5. Bypassing macOS "Zombie" Locks (EPERM)
 When manipulating massive files inside macOS `Documents/` or `Desktop/` folders, iCloud's `bird` daemon can occasionally place "Zombie" locks on files, resulting in bizarre `EPERM: uv_cwd` or `Operation not permitted` errors.
 *   **Troubleshooting Rule:** If you encounter mysterious `EPERM` errors while writing or merging PDFs, the fix is to completely restart the Terminal process, or temporarily move the `input/` and `output/` directories to a non-iCloud synchronized directory (like `~/Downloads` or `/tmp`).
+
+## 6. Bypassing macOS Background Throttling (App Nap)
+Because compiling massive PDFs is a long-running background task, macOS may aggressively throttle the Node process to save battery (App Nap) if the display sleeps or the terminal window is hidden.
+*   **Requirement:** If you are running massive compilation jobs that take hours, recommend running the compiler with `caffeinate` to prevent the OS from putting the process to sleep:
+    ```bash
+    caffeinate node --max-old-space-size=8192 index.js
+    ```

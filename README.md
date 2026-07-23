@@ -46,5 +46,17 @@ node index.js --dry-run
 | `--max-words` | The maximum word count per volume | `450000` (Leaves 50k buffer) |
 | `--max-mb` | The maximum physical file size per volume | `180` (Leaves 20MB buffer) |
 
+## Verification Tip
+Once you've uploaded your compiled volumes into NotebookLM, it's always a good idea to verify that the ingestion worked perfectly. You can use the following prompt directly in NotebookLM to ensure nothing was cut off:
+
+> *"Please check that all of the sources have imported correctly due to the 500,000 word limit in NotebookLM (as far as I am aware) - see if any were truncated."*
+
+NotebookLM will scan its internal metadata and should respond with something like: *"There are no system warnings indicating that any of the files exceeded the 500,000-word limit or were truncated."* (NotebookLM secretly injects a 'truncated' flag into sources that breach the limit, so this prompt forces it to reveal that flag).
+
+## Known Limitations: Accessibility Tagging
+While this tool perfectly prepares raw text and visual pages for NotebookLM's ingestion engine, it currently **does not preserve strict `<Part>` or `<Document>` Accessibility Tag grouping** (`StructTreeRoot`) when merging PDFs. We intentionally omit this to keep the compiler a lightweight, pure Node.js CLI tool (as properly manipulating PDF structure trees requires heavy Python libraries like `pikepdf`). 
+
+If you plan to read these compiled volumes locally with a screen reader, note that the reading order might rely on physical layout rather than strict logical tags. We may introduce optional accessibility repairs in a future update for users who need compliant local archiving.
+
 ## Disclaimer
 This project is open-source and not affiliated with Google or NotebookLM.
