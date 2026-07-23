@@ -14,7 +14,7 @@ const { execSync } = require('child_process');
 // ==========================================
 if (!isMainThread) {
     async function processFile() {
-        const { filePath, file, compress, tempDir, maxWords } = workerData;
+        const { filePath, file, compress, tempDir, maxWords, timeout } = workerData;
         let activePath = filePath;
         let finalSize = 0;
         
@@ -34,10 +34,10 @@ if (!isMainThread) {
                     const clopCmd = `nice -n 10 clop optimise pdf --output "${tmpCompPath}" "${filePath}"`;
                     const gsCmd = `nice -n 10 gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -sOutputFile="${tmpCompPath}" "${filePath}"`;
                     try {
-                        execSync(clopCmd, { stdio: 'ignore', timeout: 180000 }); // 3 min max
+                        execSync(clopCmd, { stdio: 'ignore', timeout: timeout }); 
                     } catch (e) {
                         try {
-                            execSync(gsCmd, { stdio: 'ignore', timeout: 180000 });
+                            execSync(gsCmd, { stdio: 'ignore', timeout: timeout });
                         } catch (innerE) {
                             throw new Error("Both Clop and Ghostscript failed or timed out.");
                         }
@@ -112,6 +112,7 @@ Options:
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
   --max-mb <num>     Override the default file size limit in MB (default: 180)
+  --timeout <min>    Max minutes to allow Ghostscript/Clop to compress a single file (default: 5)
   --help, -h         Show this help message
 `);
     process.exit(0);
@@ -130,6 +131,7 @@ const outputDir = path.resolve(getArgValue('--output', './output'));
 const logsDir = path.resolve(getArgValue('--logs', './logs'));
 const isDryRun = args.includes('--dry-run');
 const doCompress = args.includes('--compress');
+const compressionTimeoutMs = parseInt(getArgValue('--timeout', 5), 10) * 60 * 1000;
 
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
@@ -383,7 +385,7 @@ async function finalizeVolume(groupName, chunkIndex, volFiles, wordCount) {
             const cacheKey = `${doCompress ? 'comp_' : ''}${file}_${stat.size}_${Math.floor(stat.mtimeMs)}`;
             
             if (!cache[cacheKey]) {
-                tasks.push({ filePath, file, compress: doCompress, tempDir: compCacheDir, maxWords: MAX_WORDS_PER_CHUNK, cacheKey });
+                tasks.push({ filePath, file, compress: doCompress, tempDir: compCacheDir, maxWords: MAX_WORDS_PER_CHUNK, cacheKey, timeout: compressionTimeoutMs });
             }
         }
     }

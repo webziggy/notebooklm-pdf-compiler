@@ -72,6 +72,7 @@ notebooklm-compiler --groups groups.json --compress
 | `--dry-run` | Simulates the chunking math without writing actual PDFs | `false` |
 | `--max-words` | The maximum word count per volume | `450000` (Leaves 50k buffer) |
 | `--max-mb` | The maximum physical file size per volume | `180` (Leaves 20MB buffer) |
+| `--timeout` | Max minutes to allow compression per file before aborting | `5` |
 
 ## Hidden Files & The Cache System (`.compiler-cache/`)
 When you use the `--compress` flag, the compiler spins up multi-threaded background workers to physically compress your PDFs *before* doing the math to split them. This is critical because it minimizes unnecessary splits and prevents you from wasting your 50 NotebookLM source slots.
