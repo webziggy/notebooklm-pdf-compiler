@@ -79,6 +79,22 @@ If you want your PDFs stitched into logical categories rather than one massive c
 > **For Smart Naming (LLM):**
 > *   `llama3` *(Default)*: Fast and smart 8B parameter model.
 > *   `phi3` or `gemma2:2b`: Tiny, blazing-fast Small Language Models (SLMs) that strictly adhere to formatting instructions, making them perfect for generating 2-3 word folder names instantly.
+>
+> ### 💡 Pro-Tip: Writing Perfect AI Contexts
+> If you are using the `--ai-context` flag (or the Context box in the Web GUI) to help the LLM name your clusters, structure it as a dictionary mapping rather than a descriptive paragraph. LLMs heavily prefer structured mappings to expand acronyms.
+> 
+> **Example of a highly optimized context:**
+> ```text
+> DOMAIN: Meeting transcripts from the manufacturing industry.
+> GOAL: Each folder represents documents from a specific participant. Name the folder using the FULL NAME of the participant.
+> ACRONYM DICTIONARY:
+> - "GBC" = Global Broadcasting Company
+> - "SU" = Springfield University
+> - "BTE" = Board of Technical Engineers
+> - "ACL" = Acme Corporation London
+> ```
+> *Note: Keeping the DOMAIN description broad (e.g., avoiding specific participant names in the top line) and wrapping your acronyms in quotes (`"GBC"`) forces the LLM to do strict string-replacement, drastically improving accuracy!*
+
 ### Grouping UI (Visual Editor)
 If you run `notebooklm-compiler --grouping-ui`, a local web server will spin up and open a Kanban-style interface in your browser. From here you can:
 - Drag and drop files between groups
