@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Auto Group Elements
     const regexBtn = document.getElementById('regex-group-btn');
+    const regexInput = document.getElementById('regex-input');
     const smartBtn = document.getElementById('smart-group-btn');
     const similarityInput = document.getElementById('similarity-input');
     
@@ -378,6 +379,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         lastKnownState = getCurrentState();
         const similarity = similarityInput.value;
+        const regexStr = regexInput.value;
         const btn = type === 'smart' ? smartBtn : regexBtn;
         const originalText = btn.textContent;
         
@@ -388,11 +390,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const res = await fetch('/api/auto-group', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, similarity })
+                body: JSON.stringify({ type, similarity, regex: regexStr })
             });
             const data = await res.json();
             
-            pushToHistory(type === 'smart' ? `Smart Grouped (Sim: ${similarity})` : `Regex Grouped`);
+            pushToHistory(type === 'smart' ? `Smart Grouped (Sim: ${similarity})` : `Regex Grouped (${regexStr})`);
             renderBoard(data.groups);
             lastKnownState = getCurrentState();
             

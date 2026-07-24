@@ -172,8 +172,7 @@ body {
     gap: 0.5rem;
 }
 
-#similarity-input {
-    width: 60px;
+#similarity-input, #regex-input {
     background: transparent;
     color: var(--text-primary);
     border: none;
@@ -181,6 +180,14 @@ body {
     padding: 0.5rem;
     font-family: 'Inter', sans-serif;
     outline: none;
+}
+
+#similarity-input {
+    width: 60px;
+}
+
+#regex-input {
+    width: 120px;
 }
 
 .btn {

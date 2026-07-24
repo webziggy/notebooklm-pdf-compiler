@@ -60,7 +60,14 @@ function startUI(inputDir, groupsOutput) {
             });
         } else {
             // Regex Suggest
-            const regex = new RegExp('^([A-Za-z]+)-');
+            const regexStr = req.body.regex || '^([A-Za-z]+)-';
+            let regex;
+            try {
+                regex = new RegExp(regexStr);
+            } catch (e) {
+                regex = new RegExp('^([A-Za-z]+)-'); // Fallback on invalid regex
+            }
+            
             files.forEach(f => {
                 const match = f.match(regex);
                 const groupName = match ? match[1] : 'Holding Area';
