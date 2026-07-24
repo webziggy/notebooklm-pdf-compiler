@@ -7,11 +7,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fileSelector = document.getElementById('file-selector');
     const deleteFileBtn = document.getElementById('delete-file-btn');
     const undoBtn = document.getElementById('undo-btn');
+    
+    // History Panel elements
+    const historyBtn = document.getElementById('history-btn');
+    const closeHistoryBtn = document.getElementById('close-history-btn');
+    const historyPanel = document.getElementById('history-panel');
+    const historyList = document.getElementById('history-list');
 
     const LOCAL_STORAGE_KEY = 'notebooklm_compiler_unsaved_groups';
     let currentLoadedFile = 'groups.json';
     
     // History State
+    // Format: [ { label: "Action name", state: "JSON_STRING" }, ... ]
     let historyStack = [];
     let lastKnownState = null;
 
@@ -28,39 +35,103 @@ document.addEventListener('DOMContentLoaded', async () => {
         return payload;
     }
 
-    function pushToHistory() {
+    function pushToHistory(actionLabel) {
         if (lastKnownState) {
-            historyStack.push(JSON.stringify(lastKnownState));
+            historyStack.push({
+                label: actionLabel,
+                state: JSON.stringify(lastKnownState)
+            });
             if (historyStack.length > 50) historyStack.shift();
             undoBtn.disabled = false;
+            renderHistoryPanel();
         }
     }
     
     // Save current UI state to localStorage
-    function saveToLocal(skipHistory = false) {
-        if (!skipHistory) pushToHistory();
+    function saveToLocal(actionLabel = null) {
+        if (actionLabel) pushToHistory(actionLabel);
         
         const currentState = getCurrentState();
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentState));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+            groups: currentState.groups,
+            history: historyStack // Persist history across reloads
+        }));
         lastKnownState = currentState;
+        if (actionLabel) renderHistoryPanel(); // Re-render for the "Current State" bubble
     }
 
     function performUndo() {
         if (historyStack.length === 0) return;
-        const previousStateStr = historyStack.pop();
-        const previousState = JSON.parse(previousStateStr);
+        const previousAction = historyStack.pop();
+        const previousState = JSON.parse(previousAction.state);
         
         renderBoard(previousState.groups);
         
         // Save to local storage but don't add this action to history
         const currentState = getCurrentState();
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentState));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+            groups: currentState.groups,
+            history: historyStack
+        }));
         lastKnownState = currentState;
         
         if (historyStack.length === 0) {
             undoBtn.disabled = true;
         }
+        renderHistoryPanel();
     }
+    
+    function performUndoTo(index) {
+        if (index < 0 || index >= historyStack.length) return;
+        
+        const targetAction = historyStack[index];
+        const previousState = JSON.parse(targetAction.state);
+        
+        // Truncate history stack
+        historyStack = historyStack.slice(0, index);
+        
+        renderBoard(previousState.groups);
+        
+        const currentState = getCurrentState();
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+            groups: currentState.groups,
+            history: historyStack
+        }));
+        lastKnownState = currentState;
+        
+        if (historyStack.length === 0) {
+            undoBtn.disabled = true;
+        }
+        renderHistoryPanel();
+    }
+
+    function renderHistoryPanel() {
+        historyList.innerHTML = '';
+        
+        // The most recent state (Current)
+        const currentLi = document.createElement('li');
+        currentLi.className = 'history-item current';
+        currentLi.innerHTML = `<span>⏺ Current State</span>`;
+        historyList.appendChild(currentLi);
+        
+        // Traverse history backward
+        for (let i = historyStack.length - 1; i >= 0; i--) {
+            const item = historyStack[i];
+            const li = document.createElement('li');
+            li.className = 'history-item';
+            li.innerHTML = `<span>↩ ${item.label}</span>`;
+            li.addEventListener('click', () => performUndoTo(i));
+            historyList.appendChild(li);
+        }
+    }
+
+    // Toggle history sidebar
+    historyBtn.addEventListener('click', () => {
+        historyPanel.classList.toggle('hidden');
+    });
+    closeHistoryBtn.addEventListener('click', () => {
+        historyPanel.classList.add('hidden');
+    });
 
     // Initialize Sortable on a container
     function makeSortable(element) {
@@ -70,12 +141,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             ghostClass: 'sortable-ghost',
             dragClass: 'sortable-drag',
             onStart: () => {
-                // We ensure lastKnownState is pristine before drag starts
                 lastKnownState = getCurrentState(); 
             },
-            onEnd: () => {
-                updateCounts();
-                saveToLocal();
+            onEnd: (evt) => {
+                if (evt.from !== evt.to || evt.oldIndex !== evt.newIndex) {
+                    const filename = evt.item.dataset.file;
+                    const toGroup = evt.to.closest('.board-column').querySelector('h2, .group-name-input').value || 'Holding Area';
+                    updateCounts();
+                    saveToLocal(`Moved ${filename} to ${toGroup}`);
+                }
             }
         });
     }
@@ -109,25 +183,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         input.value = groupName;
         
-        // Track focus to save history right before renaming
+        let oldName = groupName;
         input.addEventListener('focus', () => {
             lastKnownState = getCurrentState();
+            oldName = input.value;
         });
-        input.addEventListener('change', () => saveToLocal());
+        input.addEventListener('change', () => {
+            if (input.value !== oldName) {
+                saveToLocal(`Renamed "${oldName}" to "${input.value}"`);
+            }
+        });
         
         files.forEach(file => {
             list.appendChild(createCard(file));
         });
 
-        // Automatically dump files to Ungrouped when deleting a column
         deleteBtn.addEventListener('click', () => {
-            if (confirm(`Are you sure you want to delete "${input.value}"? Any files inside will be moved to the Ungrouped Bucket.`)) {
+            if (confirm(`Are you sure you want to delete "${input.value}"? Any files inside will be moved to the Holding Area.`)) {
                 lastKnownState = getCurrentState();
                 const cards = Array.from(list.children);
                 cards.forEach(card => ungroupedList.appendChild(card));
                 col.remove();
                 updateCounts();
-                saveToLocal();
+                saveToLocal(`Deleted group "${input.value}"`);
             }
         });
 
@@ -181,9 +259,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Check Local Storage
             const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
             if (savedState && filename === '') {
+                const parsed = JSON.parse(savedState);
                 if (confirm("You have unsaved drag-and-drop changes. Restore them? (Cancel to load from disk)")) {
-                    renderBoard(JSON.parse(savedState).groups);
+                    renderBoard(parsed.groups);
+                    historyStack = parsed.history || [];
+                    undoBtn.disabled = historyStack.length === 0;
                     lastKnownState = getCurrentState();
+                    renderHistoryPanel();
                     return;
                 } else {
                     localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -196,6 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Reset history when loading a new file
             historyStack = [];
             undoBtn.disabled = true;
+            renderHistoryPanel();
             
         } catch (err) {
             console.error("Failed to load data", err);
@@ -234,7 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const newName = "New_Cluster_" + (document.querySelectorAll('.group-col').length + 1);
         createGroupColumn(newName, []);
         updateCounts();
-        saveToLocal();
+        saveToLocal(`Created new group "${newName}"`);
         groupsContainer.scrollLeft = groupsContainer.scrollWidth;
     });
 
@@ -256,6 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             historyStack = [];
             undoBtn.disabled = true;
+            renderHistoryPanel();
             
         } catch (err) {
             console.error(err);

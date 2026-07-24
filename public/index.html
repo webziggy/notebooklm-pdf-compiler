@@ -25,6 +25,7 @@
         </div>
 
         <div class="actions">
+            <button id="history-btn" class="btn secondary" title="View action history"> 🕒 History </button>
             <button id="undo-btn" class="btn secondary" disabled title="Undo last action (Cmd/Ctrl+Z)"> ↩ Undo </button>
             <button id="add-group-btn" class="btn secondary"> + New Group </button>
             <button id="save-btn" class="btn primary"> Save & Compile </button>
@@ -32,10 +33,10 @@
     </header>
 
     <main class="board-container">
-        <!-- Ungrouped Bucket always stays on the left -->
+        <!-- Holding Area always stays on the left -->
         <div class="board-column ungrouped-col" id="ungrouped-container">
             <div class="column-header">
-                <h2>📦 Ungrouped Bucket</h2>
+                <h2>📦 Holding Area</h2>
                 <span class="count" id="ungrouped-count">0</span>
             </div>
             <p class="helper-text">Drag files here to remove them from groups.</p>
@@ -61,6 +62,16 @@
             <div class="sortable-list"></div>
         </div>
     </template>
+
+    <div id="history-panel" class="history-sidebar hidden">
+        <div class="history-header">
+            <h3>Action History</h3>
+            <button id="close-history-btn" class="btn secondary">×</button>
+        </div>
+        <ul id="history-list" class="history-list">
+            <!-- Items injected via JS -->
+        </ul>
+    </div>
 
     <script src="app.js"></script>
 </body>
