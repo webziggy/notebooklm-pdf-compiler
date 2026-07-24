@@ -282,11 +282,11 @@ body {
 }
 
 .groups-scroll-area {
-    column-count: auto;
-    column-width: 300px;
-    column-gap: 1.5rem;
-    display: block;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    align-items: start;
     flex: 1;
+    gap: 1.5rem;
     overflow-y: auto;
     overflow-x: hidden;
     padding-bottom: 1rem;
@@ -294,19 +294,23 @@ body {
 }
 
 .board-column {
-    display: inline-block;
+    display: flex;
     flex-direction: column;
     width: 100%;
     margin-bottom: 1.5rem;
-    break-inside: avoid;
-    -webkit-column-break-inside: avoid;
-    page-break-inside: avoid;
     background: var(--bg-column);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--border);
     border-radius: 12px;
-    /* max-height removed to allow masonry/grid flow */
+    transition: all 0.3s ease;
+}
+
+.board-column.collapsed .sortable-list {
+    display: none;
+}
+.board-column.collapsed {
+    margin-bottom: 0.5rem;
 }
 
 .ungrouped-col {
@@ -551,14 +555,13 @@ body {
 
 /* Bubble Overview Chart */
 .bubble-container {
+    --zoom: 1.0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: 1.5rem;
     padding: 2rem;
-    transition: transform 0.3s ease;
-    transform-origin: top center;
 }
 
 .zoom-controls {
@@ -566,6 +569,28 @@ body {
     gap: 0.5rem;
     justify-content: center;
     margin-bottom: 1rem;
+}
+
+.search-input {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: all 0.2s;
+    width: 200px;
+}
+.search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.3);
+}
+
+.selected-card {
+    border: 2px solid var(--accent);
+    background: rgba(59,130,246,0.2) !important;
+    transform: scale(0.98);
 }
 
 .btn.zoom-btn {

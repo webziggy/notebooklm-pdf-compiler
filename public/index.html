@@ -42,6 +42,7 @@
             </div>
 
             <div class="main-actions">
+                <input type="text" id="search-input" class="search-input" placeholder="Search files...">
                 <button id="overview-btn" class="btn secondary" title="View Cluster Overview"> 🔍 Overview </button>
                 <button id="add-group-btn" class="btn secondary"> + New Group </button>
                 <button id="save-btn" class="btn primary"> Save & Compile </button>
@@ -147,6 +148,8 @@
     <template id="group-template">
         <div class="board-column group-col">
             <div class="column-header">
+                <button class="collapse-group-btn btn secondary" title="Toggle collapse" style="padding: 0.1rem 0.4rem; font-size: 0.8rem; margin-right: 0.3rem;">–</button>
+                <input type="color" class="group-color-picker" title="Color tag" value="#3b82f6" style="width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; padding: 0; margin-right: 0.5rem; outline: none;">
                 <div contenteditable="true" class="group-name-input">Cluster_X</div>
                 <span class="count">0</span>
                 <button class="delete-group-btn" title="Delete empty group">×</button>

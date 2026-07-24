@@ -45,6 +45,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         return payload;
     }
 
+    function showToast(message) {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = 'position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999;';
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.cssText = 'background: rgba(59,130,246,0.9); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); opacity: 0; transition: opacity 0.3s, transform 0.3s; transform: translateY(20px); font-family: "DM Sans", sans-serif; font-size: 0.9rem;';
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        }, 10);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
     function pushToHistory(actionLabel) {
         if (lastKnownState) {
             historyStack.push({
@@ -59,6 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             redoBtn.disabled = true;
             
             renderHistoryPanel();
+            showToast(actionLabel);
         }
     }
     
@@ -103,6 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         undoBtn.disabled = historyStack.length === 0;
         redoBtn.disabled = redoStack.length === 0;
         renderHistoryPanel();
+        showToast("Undid action: " + previousAction.label);
     }
 
     function performRedo() {
@@ -131,6 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         undoBtn.disabled = historyStack.length === 0;
         redoBtn.disabled = redoStack.length === 0;
         renderHistoryPanel();
+        showToast("Redid action: " + nextAction.label);
     }
     
     function performUndoTo(index) {
@@ -191,18 +219,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         new Sortable(element, {
             group: 'shared',
             animation: 150,
+            multiDrag: true,
+            selectedClass: 'selected-card',
+            fallbackTolerance: 3,
             ghostClass: 'sortable-ghost',
             dragClass: 'sortable-drag',
             onStart: () => {
                 lastKnownState = getCurrentState(); 
             },
             onEnd: (evt) => {
+                // If it's a multi-drag event, evt.items will contain all dragged items
                 if (evt.from !== evt.to || evt.oldIndex !== evt.newIndex) {
-                    const filename = evt.item.dataset.file;
-                    const nameEl = evt.to.closest('.board-column').querySelector('.group-name-input') || evt.to.closest('.board-column').querySelector('h2');
-                    const toGroup = (nameEl ? nameEl.textContent.trim() : null) || 'Holding Area';
-                    updateCounts();
-                    saveToLocal(`Moved ${filename} to ${toGroup}`);
+                    const toGroup = evt.to.closest('.board-column').querySelector('.group-name-input') 
+                                    ? evt.to.closest('.board-column').querySelector('.group-name-input').textContent.trim() 
+                                    : 'Holding Area';
+                    
+                    if (evt.items && evt.items.length > 0) {
+                        updateCounts();
+                        saveToLocal(`Moved ${evt.items.length} files to ${toGroup}`);
+                    } else {
+                        const filename = evt.item.dataset.file;
+                        updateCounts();
+                        saveToLocal(`Moved ${filename} to ${toGroup}`);
+                    }
                 }
             }
         });
@@ -262,10 +301,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         const input = clone.querySelector('.group-name-input');
         const list = clone.querySelector('.sortable-list');
         const deleteBtn = clone.querySelector('.delete-group-btn');
+        const collapseBtn = clone.querySelector('.collapse-group-btn');
+        const colorPicker = clone.querySelector('.group-color-picker');
 
         input.textContent = groupName;
         
         let oldName = groupName;
+        
+        if (collapseBtn) {
+            collapseBtn.addEventListener('click', () => {
+                col.classList.toggle('collapsed');
+                collapseBtn.textContent = col.classList.contains('collapsed') ? '+' : '–';
+            });
+        }
+        
+        if (colorPicker) {
+            const savedColors = JSON.parse(localStorage.getItem('notebooklm_compiler_colors') || '{}');
+            if (savedColors[groupName]) {
+                colorPicker.value = savedColors[groupName];
+                col.style.borderColor = savedColors[groupName];
+                col.style.boxShadow = `0 0 10px ${savedColors[groupName]}40`;
+            }
+            colorPicker.addEventListener('input', (e) => {
+                col.style.borderColor = e.target.value;
+                col.style.boxShadow = `0 0 10px ${e.target.value}40`;
+            });
+            colorPicker.addEventListener('change', (e) => {
+                const colors = JSON.parse(localStorage.getItem('notebooklm_compiler_colors') || '{}');
+                colors[input.textContent.trim()] = e.target.value;
+                localStorage.setItem('notebooklm_compiler_colors', JSON.stringify(colors));
+            });
+        }
         input.addEventListener('focus', () => {
             lastKnownState = getCurrentState();
             oldName = input.textContent.trim();
@@ -431,6 +497,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         groupsContainer.scrollLeft = 0;
     });
 
+    // Search Filtering
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const allCards = document.querySelectorAll('.pdf-card');
+            
+            allCards.forEach(card => {
+                const title = card.querySelector('span').textContent.toLowerCase();
+                if (title.includes(term)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+            
+            // Hide empty columns if a search is active
+            const allCols = document.querySelectorAll('.board-column');
+            allCols.forEach(col => {
+                if (col.id === 'ungrouped-container') return;
+                const visibleCards = Array.from(col.querySelectorAll('.pdf-card')).filter(c => c.style.display !== 'none');
+                if (term !== '' && visibleCards.length === 0) {
+                    col.style.display = 'none';
+                } else {
+                    col.style.display = 'flex';
+                }
+            });
+        });
+    }
+
     // Overview Modal
     const overviewModal = document.getElementById('overview-modal');
     const closeOverviewModal = document.getElementById('close-overview-modal');
@@ -445,7 +541,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentZoom = 1.0;
     
     function applyZoom() {
-        bubbleContainer.style.transform = `scale(${currentZoom})`;
+        bubbleContainer.style.setProperty('--zoom', currentZoom);
     }
     
     if (zoomInBtn) {
@@ -487,15 +583,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Calculate size based on file count
             // Base size 100px + 10px per file, max 250px
             const size = Math.min(250, 100 + (count * 10));
+            const titleFontSize = size > 150 ? 1 : 0.8;
+            const countFontSize = size > 150 ? 1.5 : 1.1;
             
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
-            bubble.style.width = `${size}px`;
-            bubble.style.height = `${size}px`;
+            bubble.style.width = `calc(${size}px * var(--zoom))`;
+            bubble.style.height = `calc(${size}px * var(--zoom))`;
             
             bubble.innerHTML = `
-                <span class="bubble-title" style="font-size: ${size > 150 ? '1rem' : '0.8rem'}">${name}</span>
-                <span class="bubble-count" style="font-size: ${size > 150 ? '1.5rem' : '1.1rem'}">${count}</span>
+                <span class="bubble-title" style="font-size: calc(${titleFontSize}rem * var(--zoom)); padding-top: calc(0.5rem * var(--zoom))">${name}</span>
+                <span class="bubble-count" style="font-size: calc(${countFontSize}rem * var(--zoom))">${count}</span>
             `;
             
             bubble.addEventListener('click', () => {
