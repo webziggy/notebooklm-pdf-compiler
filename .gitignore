@@ -16,3 +16,6 @@ package-lock.json
 
 # Generated grouping configs
 groups*.json
+
+# Backup
+backup.sh

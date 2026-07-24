@@ -1,0 +1,8 @@
+node_modules/
+input/
+output/
+logs/
+local-docs/
+.git/
+groups*.json
+.DS_Store
