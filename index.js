@@ -101,8 +101,8 @@ const args = process.argv.slice(2);
 
 const validOptions = new Set([
     '--help', '-h', '--input', '--output', '--logs', '--groups', 
-    '--suggest-groups', '--smart-groups', '--similarity', '--compress', '--dry-run', 
-    '--max-words', '--max-mb', '--timeout'
+    '--suggest-groups', '--smart-groups', '--similarity', '--grouping-ui',
+    '--compress', '--dry-run', '--max-words', '--max-mb', '--timeout'
 ]);
 
 for (const arg of args) {
@@ -131,6 +131,7 @@ Options:
   --suggest-groups   Automatically scan input/ and generate 'groups.json' using regex
   --smart-groups     Intelligently cluster files using Machine Learning (AGNES)
   --similarity <num> Tune the ML clustering strictness from 0.1 to 0.9 (default: 0.4)
+  --grouping-ui      Launch a beautiful web interface to visually drag-and-drop groups
   --compress         Enable Ghostscript pre-compression to maximize source slot efficiency
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
@@ -203,6 +204,13 @@ if (args.includes('--max-mb')) MAX_BYTES_PER_CHUNK = parseInt(getArgValue('--max
 if (!fs.existsSync(inputDir)) {
     console.error(`Error: Input directory '${inputDir}' does not exist.`);
     process.exit(1);
+}
+
+// Phase 2.0: Grouping UI
+if (args.includes('--grouping-ui')) {
+    const { startUI } = require('./ui-server.js');
+    startUI(inputDir, 'groups.json');
+    return; // Halt CLI, wait for UI server to exit process on save
 }
 
 // Phase 2.1: Auto-Grouping logic

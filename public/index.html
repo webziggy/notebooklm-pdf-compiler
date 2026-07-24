@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotebookLM Compiler - Grouping UI</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts for Modern Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SortableJS for Drag and Drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+</head>
+<body>
+    <header class="top-nav">
+        <div class="logo">
+            <h1>NotebookLM PDF Compiler</h1>
+            <p>Smart Grouping UI</p>
+        </div>
+        <div class="actions">
+            <button id="add-group-btn" class="btn secondary"> + New Group </button>
+            <button id="save-btn" class="btn primary"> Save & Compile </button>
+        </div>
+    </header>
+
+    <main class="board-container">
+        <!-- Ungrouped Bucket always stays on the left -->
+        <div class="board-column ungrouped-col" id="ungrouped-container">
+            <div class="column-header">
+                <h2>📦 Ungrouped Bucket</h2>
+                <span class="count" id="ungrouped-count">0</span>
+            </div>
+            <p class="helper-text">Drag files here to remove them from groups.</p>
+            <div class="sortable-list" id="ungrouped-list" data-group="Ungrouped">
+                <!-- Items injected via JS -->
+            </div>
+        </div>
+
+        <!-- Dynamic Groups Container -->
+        <div class="groups-scroll-area" id="groups-container">
+            <!-- Columns injected via JS -->
+        </div>
+    </main>
+
+    <!-- Template for a group column -->
+    <template id="group-template">
+        <div class="board-column group-col">
+            <div class="column-header">
+                <input type="text" class="group-name-input" value="Cluster_X">
+                <span class="count">0</span>
+                <button class="delete-group-btn" title="Delete empty group">×</button>
+            </div>
+            <div class="sortable-list"></div>
+        </div>
+    </template>
+
+    <script src="app.js"></script>
+</body>
+</html>
