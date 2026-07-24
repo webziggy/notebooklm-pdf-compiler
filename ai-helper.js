@@ -1,12 +1,13 @@
 const http = require('http');
 
-function makeRequest(method, path, data = null) {
+function makeRequest(method, path, data = null, signal = null) {
     return new Promise((resolve, reject) => {
         const options = {
             hostname: 'localhost',
             port: 11434,
             path: path,
             method: method,
+            signal: signal,
             headers: {
                 'Content-Type': 'application/json'
             }
@@ -112,14 +113,15 @@ async function ensureModel(modelName, onProgress) {
     }
 }
 
-async function getEmbeddings(texts, modelName) {
+async function getEmbeddings(texts, modelName, signal) {
     const embeddings = [];
     for (const text of texts) {
+        if (signal && signal.aborted) throw new Error("Operation cancelled by user.");
         try {
             const res = await makeRequest('POST', '/api/embeddings', {
                 model: modelName,
                 prompt: text
-            });
+            }, signal);
             embeddings.push(res.embedding);
         } catch (err) {
             throw new Error(`Failed to generate embedding for ${text}: ${err.message}`);
@@ -184,7 +186,7 @@ function nameClusterLCS(files, existingNames) {
     return getUniqueName(cleanName, existingNames);
 }
 
-async function nameClustersWithLLM(groupedFilesMap, textModel, context, onProgress) {
+async function nameClustersWithLLM(groupedFilesMap, textModel, context, onProgress, signal) {
     const clusters = Object.values(groupedFilesMap);
     
     let prompt = `
@@ -211,13 +213,15 @@ RULES:
         const filesListStr = files.join("\n");
         const clusterPrompt = prompt.replace("__FILES__", filesListStr);
         
+        if (signal && signal.aborted) throw new Error("Operation cancelled by user.");
+        
         try {
             const res = await makeRequest('POST', '/api/generate', {
                 model: textModel,
                 prompt: clusterPrompt,
                 stream: false,
                 options: { temperature: 0.2 }
-            });
+            }, signal);
             
             let suggestedName = (res.response || "").trim();
             suggestedName = suggestedName.replace(/["']/g, '').replace(/[^a-zA-Z0-9 -_]/g, '').trim();
@@ -239,14 +243,16 @@ RULES:
     return namedGroups;
 }
 
-async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'llama3', context = '', embedModel = 'nomic-embed-text', onProgress) {
+async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'llama3', context = '', embedModel = 'nomic-embed-text', onProgress, signal) {
+    if (signal && signal.aborted) throw new Error("Operation cancelled by user.");
     if (onProgress) onProgress("Checking Ollama connection...");
     const models = await checkOllama();
     
     await ensureModel(embedModel, onProgress);
+    if (signal && signal.aborted) throw new Error("Operation cancelled by user.");
     
     if (onProgress) onProgress("Generating semantic embeddings for files...");
-    const embeddings = await getEmbeddings(files, embedModel);
+    const embeddings = await getEmbeddings(files, embedModel, signal);
     
     if (onProgress) onProgress("Calculating semantic distances...");
     const hclust = require('ml-hclust');
@@ -289,7 +295,7 @@ async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'lla
     let finalGroups = {};
     if (hasTextModel && textModel.toLowerCase() !== 'none') {
         if (onProgress) onProgress(`Using ${textModel} to generate smart folder names...`);
-        finalGroups = await nameClustersWithLLM(tempGroups, textModel, context, onProgress);
+        finalGroups = await nameClustersWithLLM(tempGroups, textModel, context, onProgress, signal);
     } else {
         if (onProgress) onProgress(`Naming clusters using common prefix algorithm...`);
         const existingNames = new Set(["Ungrouped", "Holding Area"]);

@@ -138,12 +138,18 @@ function startUI(inputDir, groupsOutput) {
         
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
         
+        const abortController = new AbortController();
+        req.on('close', () => {
+            console.log('[AI-Group] Client disconnected, aborting task...');
+            abortController.abort();
+        });
+
         try {
             const { performAIGrouping } = require('./ai-helper');
             const groups = await performAIGrouping(files, similarity, textModel, context, embedModel, (msg) => {
                 res.write(`data: ${JSON.stringify({ type: 'progress', message: msg })}\n\n`);
                 console.log(`[AI-Group] ${msg}`);
-            });
+            }, abortController.signal);
             
             const groupedFiles = new Set(Object.values(groups).flat());
             groups["Holding Area"] = groups["Holding Area"] || [];
@@ -158,7 +164,7 @@ function startUI(inputDir, groupsOutput) {
 
             res.write(`data: ${JSON.stringify({ type: 'done', groups })}\n\n`);
         } catch (err) {
-            res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+            if (!abortController.signal.aborted) res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
         }
         res.end();
     });
@@ -181,6 +187,12 @@ function startUI(inputDir, groupsOutput) {
         const { groups, model, context } = req.body;
         const textModel = model || 'llama3';
         
+        const abortController = new AbortController();
+        req.on('close', () => {
+            console.log('[AI-Rename] Client disconnected, aborting task...');
+            abortController.abort();
+        });
+        
         try {
             const { nameClustersWithLLM, checkOllama, ensureModel } = require('./ai-helper');
             
@@ -198,20 +210,22 @@ function startUI(inputDir, groupsOutput) {
                 await ensureModel(textModel, sendMsg);
             }
             
+            if (abortController.signal.aborted) throw new Error("Operation cancelled by user.");
+            
             const holdingArea = groups["Holding Area"];
             const ungrouped = groups["Ungrouped"];
             delete groups["Holding Area"];
             delete groups["Ungrouped"];
             
             sendMsg(`Using ${textModel} to generate smart folder names...`);
-            const renamedGroups = await nameClustersWithLLM(groups, textModel, context || '', sendMsg);
+            const renamedGroups = await nameClustersWithLLM(groups, textModel, context || '', sendMsg, abortController.signal);
             
             if (holdingArea) renamedGroups["Holding Area"] = holdingArea;
             if (ungrouped) renamedGroups["Ungrouped"] = ungrouped;
             
-            res.write(JSON.stringify({ type: 'done', groups: renamedGroups }) + '\n');
+            if (!abortController.signal.aborted) res.write(JSON.stringify({ type: 'done', groups: renamedGroups }) + '\n');
         } catch (err) {
-            res.write(JSON.stringify({ type: 'error', error: err.message }) + '\n');
+            if (!abortController.signal.aborted) res.write(JSON.stringify({ type: 'error', error: err.message }) + '\n');
         }
         res.end();
     });

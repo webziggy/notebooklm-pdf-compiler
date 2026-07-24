@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const aiRenameModelInput = document.getElementById('ai-rename-model');
     const aiRenameContextInput = document.getElementById('ai-rename-context');
 
+    let activeRenameController = null;
+
     if (aiRenameBtn) {
         aiRenameBtn.addEventListener('click', () => {
             aiRenameModal.classList.remove('hidden');
@@ -30,6 +32,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 aiRenameModal.classList.add('hidden');
                 aiRenameStatusPanel.classList.add('hidden');
                 startAiRenameBtn.disabled = false;
+                if (activeRenameController) {
+                    activeRenameController.abort();
+                    activeRenameController = null;
+                }
             });
         });
         
@@ -43,11 +49,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             try {
                 const currentState = getCurrentState();
+                activeRenameController = new AbortController();
                 
                 const res = await fetch('/api/ai-rename-stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ groups: currentState.groups, model: textModel, context: context })
+                    body: JSON.stringify({ groups: currentState.groups, model: textModel, context: context }),
+                    signal: activeRenameController.signal
                 });
                 
                 if (!res.ok) throw new Error("Server rejected request");
@@ -80,15 +88,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 aiRenameModal.classList.add('hidden');
                                 aiRenameStatusPanel.classList.add('hidden');
                                 startAiRenameBtn.disabled = false;
+                                activeRenameController = null;
                                 showToast("Clusters successfully renamed by AI!");
                             }
                         } catch(e) { }
                     }
                 }
             } catch (err) {
-                aiRenameStatusText.textContent = "Error: " + err.message;
-                aiRenameStatusText.style.color = 'var(--danger)';
+                if (err.name === 'AbortError') {
+                    aiRenameStatusText.textContent = "Operation cancelled.";
+                } else {
+                    aiRenameStatusText.textContent = "Error: " + err.message;
+                    aiRenameStatusText.style.color = 'var(--danger)';
+                }
                 startAiRenameBtn.disabled = false;
+                activeRenameController = null;
             }
         });
     }
@@ -809,9 +823,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const aiStatusPanel = document.getElementById('ai-status-panel');
     const aiStatusText = document.getElementById('ai-status-text');
 
+    let activeEventSource = null;
+
     function closeAiModalFunc() {
         aiModal.classList.add('hidden');
         aiStatusPanel.classList.add('hidden');
+        startAiBtn.disabled = false;
+        cancelAiBtn.disabled = false;
+        if (activeEventSource) {
+            activeEventSource.close();
+            activeEventSource = null;
+        }
     }
 
     if (closeAiModal) closeAiModal.addEventListener('click', closeAiModalFunc);
@@ -834,24 +856,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (context) {
                 sseUrl += `&context=${encodeURIComponent(context)}`;
             }
-            const es = new EventSource(sseUrl);
+            activeEventSource = new EventSource(sseUrl);
             
-            es.onmessage = (event) => {
+            activeEventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 
                 if (data.type === 'progress') {
                     aiStatusText.textContent = data.message;
                 } else if (data.type === 'done') {
-                    es.close();
+                    activeEventSource.close();
+                    activeEventSource = null;
                     groups = data.groups;
                     renderBoard(groups);
                     updateCounts();
                     saveToLocal("Smart Grouped via Local AI");
                     closeAiModalFunc();
-                    startAiBtn.disabled = false;
-                    cancelAiBtn.disabled = false;
                 } else if (data.type === 'error') {
-                    es.close();
+                    activeEventSource.close();
+                    activeEventSource = null;
                     aiStatusText.textContent = "Error: " + data.error;
                     aiStatusText.style.color = 'var(--danger)';
                     startAiBtn.disabled = false;
@@ -859,8 +881,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             };
             
-            es.onerror = (err) => {
-                es.close();
+            activeEventSource.onerror = (err) => {
+                activeEventSource.close();
+                activeEventSource = null;
                 aiStatusText.textContent = "Connection lost or failed.";
                 aiStatusText.style.color = 'var(--danger)';
                 startAiBtn.disabled = false;
