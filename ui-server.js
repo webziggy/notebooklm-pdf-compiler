@@ -33,12 +33,22 @@ function startUI(inputDir, groupsOutput) {
         res.json({ groups, groupFiles, currentFile: targetFile });
     });
 
-    app.post('/api/auto-group', (req, res) => {
+    app.post('/api/auto-group', async (req, res) => {
         const { type, similarity } = req.body;
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
-        const groups = {};
+        let groups = {};
 
-        if (type === 'smart') {
+        if (type === 'ai') {
+            try {
+                const { performAIGrouping } = require('./ai-helper');
+                // The UI server can just await it since the Express handler is async
+                groups = await performAIGrouping(files, parseFloat(similarity) || 0.5, (msg) => {
+                    console.log(`[AI-Group] ${msg}`);
+                });
+            } catch (err) {
+                return res.status(500).json({ error: err.message });
+            }
+        } else if (type === 'smart') {
             const stringSimilarity = require('string-similarity');
             const hclust = require('ml-hclust');
             const distanceMatrix = [];

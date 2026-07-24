@@ -214,14 +214,51 @@ if (args.includes('--grouping-ui')) {
 }
 
 // Phase 2.1: Auto-Grouping logic
-if (args.includes('--suggest-groups') || args.includes('--smart-groups')) {
+if (args.includes('--suggest-groups') || args.includes('--smart-groups') || args.includes('--ai-groups')) {
     const isSmartGroups = args.includes('--smart-groups');
+    const isAiGroups = args.includes('--ai-groups');
     const groupsOutput = 'groups.json';
     const groups = {};
     const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
     const fileSet = new Set(files);
     
-    if (isSmartGroups) {
+    if (isAiGroups) {
+        console.log(`\nAnalyzing ${files.length} files using Local AI (Ollama Semantic Embeddings)...`);
+        const { performAIGrouping } = require('./ai-helper');
+        const similarityTarget = parseFloat(getArgValue('--similarity', '0.5'));
+        
+        try {
+            const resultGroups = require('child_process').execSync(`node -e "
+                const { performAIGrouping } = require('./ai-helper');
+                (async () => {
+                    try {
+                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, (msg) => console.log(msg));
+                        console.log('__JSON_START__' + JSON.stringify(res) + '__JSON_END__');
+                    } catch(err) {
+                        console.error('__ERR_START__' + err.message + '__ERR_END__');
+                    }
+                })();
+            "`, { stdio: 'pipe', encoding: 'utf-8' });
+            
+            const errMatch = resultGroups.match(/__ERR_START__(.*?)__ERR_END__/s);
+            if (errMatch) throw new Error(errMatch[1]);
+            
+            const match = resultGroups.match(/__JSON_START__(.*?)__JSON_END__/s);
+            if (!match) throw new Error("Failed to parse AI output.");
+            
+            const outputJSON = JSON.parse(match[1]);
+            Object.assign(groups, outputJSON);
+            
+            // Re-print the console logs from the child process that aren't our JSON strings
+            const logs = resultGroups.replace(/__(JSON|ERR)_START__.*?__(JSON|ERR)_END__/gs, '').trim();
+            if (logs) console.log(logs);
+            
+        } catch (err) {
+            console.error(`\n❌ AI Grouping Failed: ${err.message}`);
+            console.log("Please ensure Ollama is running (`ollama serve`) and accessible.");
+            process.exit(1);
+        }
+    } else if (isSmartGroups) {
         console.log(`\nAnalyzing ${files.length} files using Machine Learning (AGNES) clustering...`);
         const stringSimilarity = require('string-similarity');
         const hclust = require('ml-hclust');

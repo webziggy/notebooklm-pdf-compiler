@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const regexInput = document.getElementById('regex-input');
     const smartBtn = document.getElementById('smart-group-btn');
     const similarityInput = document.getElementById('similarity-input');
+    const aiBtn = document.getElementById('ai-group-btn');
     
     // History Panel elements
     const undoBtn = document.getElementById('undo-btn');
@@ -380,10 +381,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         lastKnownState = getCurrentState();
         const similarity = similarityInput.value;
         const regexStr = regexInput.value;
-        const btn = type === 'smart' ? smartBtn : regexBtn;
+        const btn = type === 'smart' ? smartBtn : type === 'ai' ? aiBtn : regexBtn;
         const originalText = btn.textContent;
         
-        btn.textContent = "Processing...";
+        btn.textContent = type === 'ai' ? "Thinking..." : "Processing...";
         btn.disabled = true;
 
         try {
@@ -394,7 +395,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             const data = await res.json();
             
-            pushToHistory(type === 'smart' ? `Smart Grouped (Sim: ${similarity})` : `Regex Grouped (${regexStr})`);
+            if (data.error) {
+                alert(`AI Grouping Failed:\n${data.error}`);
+                return;
+            }
+            
+            const label = type === 'ai' ? `AI Grouped (Sim: ${similarity})` 
+                          : type === 'smart' ? `Smart Grouped (Sim: ${similarity})` 
+                          : `Regex Grouped (${regexStr})`;
+                          
+            pushToHistory(label);
             renderBoard(data.groups);
             lastKnownState = getCurrentState();
             
@@ -409,6 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     regexBtn.addEventListener('click', () => runAutoGroup('regex'));
     smartBtn.addEventListener('click', () => runAutoGroup('smart'));
+    aiBtn.addEventListener('click', () => runAutoGroup('ai'));
 
     saveBtn.addEventListener('click', async () => {
         saveBtn.textContent = "Saving...";
