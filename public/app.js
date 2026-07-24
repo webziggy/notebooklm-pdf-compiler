@@ -207,11 +207,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateCounts() {
         const columns = document.querySelectorAll('.board-column');
+        let totalFiles = 0;
+        let totalGroups = 0;
+        
         columns.forEach(col => {
             const countSpan = col.querySelector('.count');
             const items = col.querySelectorAll('.pdf-card').length;
             countSpan.textContent = items;
+            
+            // Do not count the Holding Area as a "Group" for the stats
+            if (col.id !== 'ungrouped-container') {
+                totalGroups++;
+                totalFiles += items;
+            }
         });
+        
+        const statsText = document.getElementById('stats-text');
+        if (statsText) {
+            statsText.textContent = `Total Groups: ${totalGroups} | Files Mapped: ${totalFiles}`;
+        }
     }
 
     function createCard(filename) {
