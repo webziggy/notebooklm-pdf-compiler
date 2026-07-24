@@ -15,20 +15,6 @@
         <div class="header-title">
             <h1>NotebookLM PDF Compiler</h1>
             <p>Drag and drop PDFs to organize your compilation.</p>
-            <div class="stats-container">
-                <div class="stat-badge">
-                    <span class="stat-label">Groups</span>
-                    <span class="stat-value" id="stat-groups-val">0</span>
-                    <span class="stat-limit">/ 50</span>
-                </div>
-                <div class="stat-badge">
-                    <span class="stat-label">Files Mapped</span>
-                    <span class="stat-value" id="stat-files-val">0</span>
-                </div>
-                <div class="stat-badge warning hidden" id="stat-warning">
-                    ⚠️ Exceeds NotebookLM Limit
-                </div>
-            </div>
         </div>
         
         <div class="file-manager">
@@ -71,6 +57,19 @@
             <div class="column-header">
                 <h2>📦 Holding Area</h2>
                 <span class="count" id="ungrouped-count">0</span>
+            </div>
+            <div class="stats-container">
+                <div class="stat-badge">
+                    <span class="stat-label">Groups</span>
+                    <span class="stat-value" id="stat-groups-val">0</span><span class="stat-limit">/ 50</span>
+                </div>
+                <div class="stat-badge">
+                    <span class="stat-label">Mapped</span>
+                    <span class="stat-value" id="stat-files-val">0</span>
+                </div>
+                <div class="stat-badge warning hidden" id="stat-warning">
+                    ⚠️ Exceeds 50 Source Limit
+                </div>
             </div>
             <p class="helper-text">Drag files here to remove them from groups.</p>
             <div class="sortable-list" id="ungrouped-list" data-group="Ungrouped">
