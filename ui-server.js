@@ -60,14 +60,18 @@ function startUI(inputDir, groupsOutput) {
         
         // Save to a versioned timestamp
         const ts = new Date().toISOString().replace(/[:.]/g, '-');
-        const versionedOutput = path.join(path.dirname(groupsOutput), `groups_${ts}.json`);
+        const versionName = `groups_${ts}.json`;
+        const versionedOutput = path.join(path.dirname(groupsOutput), versionName);
         
         fs.writeFileSync(versionedOutput, JSON.stringify(finalGroups, null, 2));
         
-        // Update the main groups.json pointer
-        fs.writeFileSync(groupsOutput, JSON.stringify(finalGroups, null, 2));
+        // Update the main groups.json pointer to be a symlink
+        if (fs.existsSync(groupsOutput) || fs.lstatSync(groupsOutput, { throwIfNoEntry: false })) {
+            fs.unlinkSync(groupsOutput);
+        }
+        fs.symlinkSync(versionName, groupsOutput);
         
-        console.log(`\n[UI] Successfully saved to ${versionedOutput} and updated groups.json!`);
+        console.log(`\n[UI] Successfully saved to ${versionedOutput} and linked groups.json!`);
         console.log(`[UI] Shutting down web server. You can now run compilation.`);
         res.json({ success: true });
         
