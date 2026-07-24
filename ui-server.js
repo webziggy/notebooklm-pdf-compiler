@@ -139,9 +139,11 @@ function startUI(inputDir, groupsOutput) {
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
         
         const abortController = new AbortController();
-        req.on('close', () => {
-            console.log('[AI-Group] Client disconnected, aborting task...');
-            abortController.abort();
+        res.on('close', () => {
+            if (!res.writableEnded) {
+                console.log('[AI-Group] Client disconnected, aborting task...');
+                abortController.abort();
+            }
         });
 
         try {
@@ -188,9 +190,11 @@ function startUI(inputDir, groupsOutput) {
         const textModel = model || 'llama3';
         
         const abortController = new AbortController();
-        req.on('close', () => {
-            console.log('[AI-Rename] Client disconnected, aborting task...');
-            abortController.abort();
+        res.on('close', () => {
+            if (!res.writableEnded) {
+                console.log('[AI-Rename] Client disconnected, aborting task...');
+                abortController.abort();
+            }
         });
         
         try {
