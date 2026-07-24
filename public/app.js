@@ -435,9 +435,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     const overviewModal = document.getElementById('overview-modal');
     const closeOverviewModal = document.getElementById('close-overview-modal');
     const bubbleContainer = document.getElementById('bubble-container');
+    
+    // Zoom Controls
+    const zoomInBtn = document.getElementById('zoom-in-btn');
+    const zoomOutBtn = document.getElementById('zoom-out-btn');
+    const zoomResetBtn = document.getElementById('zoom-reset-btn');
+    const zoomFitBtn = document.getElementById('zoom-fit-btn');
+    
+    let currentZoom = 1.0;
+    
+    function applyZoom() {
+        bubbleContainer.style.transform = `scale(${currentZoom})`;
+    }
+    
+    if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', () => {
+            currentZoom = Math.min(2.0, currentZoom + 0.1);
+            applyZoom();
+        });
+        zoomOutBtn.addEventListener('click', () => {
+            currentZoom = Math.max(0.2, currentZoom - 0.1);
+            applyZoom();
+        });
+        zoomResetBtn.addEventListener('click', () => {
+            currentZoom = 1.0;
+            applyZoom();
+        });
+        zoomFitBtn.addEventListener('click', () => {
+            // Very simple heuristic for fit viewport: scale down based on number of items
+            // A more complex approach would measure container width vs scroll width
+            const count = document.querySelectorAll('.bubble').length;
+            if (count > 20) currentZoom = 0.4;
+            else if (count > 10) currentZoom = 0.6;
+            else if (count > 5) currentZoom = 0.8;
+            else currentZoom = 1.0;
+            applyZoom();
+        });
+    }
 
     overviewBtn.addEventListener('click', () => {
         bubbleContainer.innerHTML = '';
+        currentZoom = 1.0;
+        applyZoom();
         const groupCols = document.querySelectorAll('.group-col');
         
         groupCols.forEach(col => {
