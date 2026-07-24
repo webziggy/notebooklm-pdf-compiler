@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const groupTemplate = document.getElementById('group-template');
     const saveBtn = document.getElementById('save-btn');
     const addGroupBtn = document.getElementById('add-group-btn');
+    const overviewBtn = document.getElementById('overview-btn');
     const fileSelector = document.getElementById('file-selector');
     const deleteFileBtn = document.getElementById('delete-file-btn');
     const groupHoldingBtn = document.getElementById('group-holding-btn');
@@ -37,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const groupCols = document.querySelectorAll('.group-col');
         groupCols.forEach(col => {
-            const name = col.querySelector('.group-name-input').value.trim() || 'Unnamed_Group';
+            const name = col.querySelector('.group-name-input').textContent.trim() || 'Unnamed_Group';
             const files = Array.from(col.querySelector('.sortable-list').children).map(c => c.dataset.file);
             payload.groups[name] = files;
         });
@@ -198,7 +199,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             onEnd: (evt) => {
                 if (evt.from !== evt.to || evt.oldIndex !== evt.newIndex) {
                     const filename = evt.item.dataset.file;
-                    const toGroup = evt.to.closest('.board-column').querySelector('h2, .group-name-input').value || 'Holding Area';
+                    const nameEl = evt.to.closest('.board-column').querySelector('.group-name-input') || evt.to.closest('.board-column').querySelector('h2');
+                    const toGroup = (nameEl ? nameEl.textContent.trim() : null) || 'Holding Area';
                     updateCounts();
                     saveToLocal(`Moved ${filename} to ${toGroup}`);
                 }
@@ -261,16 +263,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const list = clone.querySelector('.sortable-list');
         const deleteBtn = clone.querySelector('.delete-group-btn');
 
-        input.value = groupName;
+        input.textContent = groupName;
         
         let oldName = groupName;
         input.addEventListener('focus', () => {
             lastKnownState = getCurrentState();
-            oldName = input.value;
+            oldName = input.textContent.trim();
         });
-        input.addEventListener('change', () => {
-            if (input.value !== oldName) {
-                saveToLocal(`Renamed "${oldName}" to "${input.value}"`);
+        
+        // Use blur or input event since contenteditable doesn't fire change
+        input.addEventListener('blur', () => {
+            const newName = input.textContent.trim();
+            if (newName !== oldName) {
+                saveToLocal(`Renamed "${oldName}" to "${newName}"`);
             }
         });
         
@@ -279,13 +284,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         deleteBtn.addEventListener('click', () => {
-            if (confirm(`Are you sure you want to delete "${input.value}"? Any files inside will be moved to the Holding Area.`)) {
+            const currentName = input.textContent.trim();
+            if (confirm(`Are you sure you want to delete "${currentName}"? Any files inside will be moved to the Holding Area.`)) {
                 lastKnownState = getCurrentState();
                 const cards = Array.from(list.children);
                 cards.forEach(card => ungroupedList.appendChild(card));
                 col.remove();
                 updateCounts();
-                saveToLocal(`Deleted group "${input.value}"`);
+                saveToLocal(`Deleted group "${currentName}"`);
             }
         });
 
@@ -423,6 +429,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateCounts();
         saveToLocal(`Grouped Holding Area into "${newName}"`);
         groupsContainer.scrollLeft = 0;
+    });
+
+    // Overview Modal
+    const overviewModal = document.getElementById('overview-modal');
+    const closeOverviewModal = document.getElementById('close-overview-modal');
+    const bubbleContainer = document.getElementById('bubble-container');
+
+    overviewBtn.addEventListener('click', () => {
+        bubbleContainer.innerHTML = '';
+        const groupCols = document.querySelectorAll('.group-col');
+        
+        groupCols.forEach(col => {
+            const nameEl = col.querySelector('.group-name-input');
+            const name = nameEl.textContent.trim() || 'Unnamed';
+            const count = col.querySelectorAll('.pdf-card').length;
+            
+            // Calculate size based on file count
+            // Base size 100px + 10px per file, max 250px
+            const size = Math.min(250, 100 + (count * 10));
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.style.width = `${size}px`;
+            bubble.style.height = `${size}px`;
+            
+            bubble.innerHTML = `
+                <span class="bubble-title" style="font-size: ${size > 150 ? '1rem' : '0.8rem'}">${name}</span>
+                <span class="bubble-count" style="font-size: ${size > 150 ? '1.5rem' : '1.1rem'}">${count}</span>
+            `;
+            
+            bubble.addEventListener('click', () => {
+                overviewModal.classList.add('hidden');
+                col.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'center' });
+                // Optional: flash the column to highlight it
+                col.style.transition = 'box-shadow 0.3s';
+                col.style.boxShadow = '0 0 20px rgba(59,130,246,0.8)';
+                setTimeout(() => col.style.boxShadow = 'none', 1500);
+            });
+            
+            bubbleContainer.appendChild(bubble);
+        });
+        
+        overviewModal.classList.remove('hidden');
+    });
+
+    closeOverviewModal.addEventListener('click', () => {
+        overviewModal.classList.add('hidden');
     });
 
     // AI Modal Elements

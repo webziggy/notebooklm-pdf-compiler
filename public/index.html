@@ -6,16 +6,13 @@
     <title>NotebookLM Compiler - Grouping UI</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Google Fonts for Modern Typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- SortableJS for Drag and Drop -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 </head>
 <body>
     <header class="top-nav">
-        <div class="header-title">
-            <h1>NotebookLM PDF Compiler</h1>
-            <p>Drag and drop PDFs to organize your compilation.</p>
-        </div>
+        <!-- Brand/Logo removed as requested -->
         
         <div class="file-manager">
             <select id="file-selector" class="file-select">
@@ -45,6 +42,7 @@
             </div>
 
             <div class="main-actions">
+                <button id="overview-btn" class="btn secondary" title="View Cluster Overview"> 🔍 Overview </button>
                 <button id="add-group-btn" class="btn secondary"> + New Group </button>
                 <button id="save-btn" class="btn primary"> Save & Compile </button>
             </div>
@@ -122,11 +120,28 @@
         </div>
     </div>
 
-    <!-- Template for a group column -->
+    <!-- Overview Modal -->
+    <div id="overview-modal" class="modal hidden">
+        <div class="modal-content" style="width: 80%; max-width: 1000px; max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h2>🔍 Cluster Overview</h2>
+                <button id="close-overview-modal" class="btn delete-btn">×</button>
+            </div>
+            <div class="modal-body" style="flex: 1; overflow-y: auto;">
+                <p style="color: var(--text-secondary); font-size: 0.9rem; text-align: center; margin-bottom: 1rem;">
+                    Click any bubble to jump directly to that cluster.
+                </p>
+                <div id="bubble-container" class="bubble-container">
+                    <!-- Bubbles injected via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <template id="group-template">
         <div class="board-column group-col">
             <div class="column-header">
-                <input type="text" class="group-name-input" value="Cluster_X">
+                <div contenteditable="true" class="group-name-input">Cluster_X</div>
                 <span class="count">0</span>
                 <button class="delete-group-btn" title="Delete empty group">×</button>
             </div>
