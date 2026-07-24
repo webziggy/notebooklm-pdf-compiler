@@ -58,10 +58,22 @@ If you've just installed the tool, here is the exact step-by-step workflow you n
 ### 1. Generating Groups (Optional)
 If you want your PDFs stitched into logical categories rather than one massive clump, you must first generate a grouping map. The compiler offers two different ways to do this:
 
+- `--compress` : Reduces the file size of the generated PDF chunks before compiling.
+- `--grouping-ui` : Launches a beautiful drag-and-drop web interface to visually edit your groups before compiling.
+
 > [!TIP]
-> **Which method should I use?**
-> *   **Use Option A (`--suggest-groups`)** if your files have clean, predictable prefixes (e.g., `INV-001.pdf`, `INV-002.pdf`, `HR-001.pdf`). Regular Expressions are flawless for structured data.
-> *   **Use Option B (`--smart-groups`)** if your files are chaotic, inconsistently named, or lack uniform prefixes (e.g., `Invoice_Jan.pdf`, `Receipt_Jan_2024.pdf`, `Jan_Final_Bill.pdf`). Machine Learning clustering thrives on messy data.
+> ### Which grouping strategy should you choose?
+> 
+> *   **Use `--suggest-groups` (Regex)** when your filenames have a strict, predictable naming convention (e.g. `INV-001.pdf`, `INV-002.pdf`, `REP-001.pdf`). This will perfectly group all `INV` files into an "INV" cluster.
+> *   **Use `--smart-groups` (String Similarity)** when your filenames are messy and inconsistent, but share common character patterns (e.g. `invoice_jan_final.pdf`, `feb-invoice-v2.pdf`). This uses mathematical string matching (AGNES).
+> *   **Use `--ai-groups` (Semantic Embeddings)** when files have completely different names but mean the same thing (e.g. `Q3_Earnings.pdf` and `Financial_Statement.pdf`). This requires **Ollama** to be running locally. It will automatically download the lightweight `nomic-embed-text` model to embed your filenames, group them by pure meaning, and even try to use `llama3` to generate beautiful context-aware folder names!
+
+### Grouping UI (Visual Editor)
+If you run `notebooklm-compiler --grouping-ui`, a local web server will spin up and open a Kanban-style interface in your browser. From here you can:
+- Drag and drop files between groups
+- Create, rename, and delete clusters
+- **Live Preview Auto-Grouping:** Click the "Regex", "Smart", or "✨ AI" buttons to instantly re-cluster your files right on the screen. (If you don't like the result, just press `Cmd+Z` to Undo!)
+- Keep track of history and restore past configurations using the built-in time-travel sidebar.
 
 #### Option A: Pattern Matching (`--suggest-groups`)
 This mode uses simple Regular Expressions to group files by prefix.
