@@ -226,13 +226,14 @@ if (args.includes('--suggest-groups') || args.includes('--smart-groups') || args
         console.log(`\nAnalyzing ${files.length} files using Local AI (Ollama Semantic Embeddings)...`);
         const { performAIGrouping } = require('./ai-helper');
         const similarityTarget = parseFloat(getArgValue('--similarity', '0.5'));
+        const textModel = getArgValue('--ai-model', 'llama3');
         
         try {
             const resultGroups = require('child_process').execSync(`node -e "
                 const { performAIGrouping } = require('./ai-helper');
                 (async () => {
                     try {
-                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, (msg) => console.log(msg));
+                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, '${textModel}', (msg) => console.log(msg));
                         console.log('__JSON_START__' + JSON.stringify(res) + '__JSON_END__');
                     } catch(err) {
                         console.error('__ERR_START__' + err.message + '__ERR_END__');

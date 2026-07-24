@@ -87,6 +87,35 @@
         </div>
     </main>
 
+    <!-- AI Modal -->
+    <div id="ai-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✨ AI Smart Grouping</h2>
+                <button id="close-ai-modal" class="btn delete-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                    Ollama will semantically cluster your files. It will automatically download the <code>nomic-embed-text</code> embedding model if missing.
+                </p>
+                
+                <div class="input-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.9rem;">LLM Naming Model (Optional):</label>
+                    <input type="text" id="ai-model-input" value="llama3" placeholder="e.g. llama3" style="width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white; border-radius: 4px;">
+                    <small style="display: block; color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">Used to generate smart folder names. Set to "none" to disable. Will download automatically if missing.</small>
+                </div>
+                
+                <div id="ai-status-panel" class="status-panel hidden">
+                    <strong style="color: var(--accent);">Status:</strong> <span id="ai-status-text">Initializing...</span>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; margin-top: 1.5rem; gap: 0.5rem;">
+                <button id="cancel-ai-btn" class="btn secondary">Cancel</button>
+                <button id="start-ai-btn" class="btn primary">Start AI Grouping</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Template for a group column -->
     <template id="group-template">
         <div class="board-column group-col">

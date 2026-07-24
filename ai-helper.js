@@ -176,9 +176,8 @@ __FILES__
     return namedGroups;
 }
 
-async function performAIGrouping(files, similarityTarget = 0.5, onProgress) {
+async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'llama3', onProgress) {
     const EMBED_MODEL = 'nomic-embed-text';
-    const TEXT_MODEL = 'llama3';
     
     if (onProgress) onProgress("Checking Ollama connection...");
     const models = await checkOllama();
@@ -216,12 +215,20 @@ async function performAIGrouping(files, similarityTarget = 0.5, onProgress) {
         tempGroups[`Cluster_${idx + 1}`] = cluster.indices().map(fileIdx => files[fileIdx]).sort();
     });
 
-    const hasTextModel = models.some(m => m.name === TEXT_MODEL || m.name.startsWith(TEXT_MODEL + ':'));
+    let hasTextModel = models.some(m => m.name === textModel || m.name.startsWith(textModel + ':'));
+    
+    // Auto-download the text model if it doesn't exist?
+    // LLMs are huge. Let's just download it if the user specified one, and tell them.
+    if (!hasTextModel && textModel && textModel.toLowerCase() !== 'none') {
+        if (onProgress) onProgress(`Model '${textModel}' not found. Downloading... this is a large file and may take a long time!`);
+        await ensureModel(textModel, onProgress);
+        hasTextModel = true;
+    }
     
     let finalGroups = {};
-    if (hasTextModel) {
-        if (onProgress) onProgress(`Using ${TEXT_MODEL} to generate smart folder names...`);
-        finalGroups = await nameClustersWithLLM(tempGroups, TEXT_MODEL);
+    if (hasTextModel && textModel.toLowerCase() !== 'none') {
+        if (onProgress) onProgress(`Using ${textModel} to generate smart folder names...`);
+        finalGroups = await nameClustersWithLLM(tempGroups, textModel);
     } else {
         if (onProgress) onProgress(`Naming clusters using common prefix algorithm...`);
         const existingNames = new Set(["Ungrouped", "Holding Area"]);

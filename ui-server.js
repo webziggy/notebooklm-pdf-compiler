@@ -38,17 +38,7 @@ function startUI(inputDir, groupsOutput) {
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
         let groups = {};
 
-        if (type === 'ai') {
-            try {
-                const { performAIGrouping } = require('./ai-helper');
-                // The UI server can just await it since the Express handler is async
-                groups = await performAIGrouping(files, parseFloat(similarity) || 0.5, (msg) => {
-                    console.log(`[AI-Group] ${msg}`);
-                });
-            } catch (err) {
-                return res.status(500).json({ error: err.message });
-            }
-        } else if (type === 'smart') {
+        if (type === 'smart') {
             const stringSimilarity = require('string-similarity');
             const hclust = require('ml-hclust');
             const distanceMatrix = [];
@@ -134,6 +124,41 @@ function startUI(inputDir, groupsOutput) {
         }
 
         res.json({ groups });
+    });
+
+    app.get('/api/ai-group-stream', async (req, res) => {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const similarity = parseFloat(req.query.similarity) || 0.5;
+        const textModel = req.query.model || 'llama3';
+        
+        const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
+        
+        try {
+            const { performAIGrouping } = require('./ai-helper');
+            const groups = await performAIGrouping(files, similarity, textModel, (msg) => {
+                res.write(`data: ${JSON.stringify({ type: 'progress', message: msg })}\n\n`);
+                console.log(`[AI-Group] ${msg}`);
+            });
+            
+            const groupedFiles = new Set(Object.values(groups).flat());
+            groups["Holding Area"] = groups["Holding Area"] || [];
+            files.forEach(f => {
+                if (!groupedFiles.has(f)) groups["Holding Area"].push(f);
+            });
+            if (groups["Holding Area"].length === 0) delete groups["Holding Area"];
+            if (groups["Ungrouped"]) {
+                groups["Holding Area"] = [...(groups["Holding Area"]||[]), ...groups["Ungrouped"]];
+                delete groups["Ungrouped"];
+            }
+
+            res.write(`data: ${JSON.stringify({ type: 'done', groups })}\n\n`);
+        } catch (err) {
+            res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+        }
+        res.end();
     });
 
     // API to delete a specific version

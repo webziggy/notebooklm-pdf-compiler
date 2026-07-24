@@ -424,7 +424,69 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveToLocal(`Grouped Holding Area into "${newName}"`);
         groupsContainer.scrollLeft = 0;
     });
-    
+
+    // AI Modal Elements
+    const aiModal = document.getElementById('ai-modal');
+    const closeAiModal = document.getElementById('close-ai-modal');
+    const cancelAiBtn = document.getElementById('cancel-ai-btn');
+    const startAiBtn = document.getElementById('start-ai-btn');
+    const aiModelInput = document.getElementById('ai-model-input');
+    const aiStatusPanel = document.getElementById('ai-status-panel');
+    const aiStatusText = document.getElementById('ai-status-text');
+
+    function closeAiModalFunc() {
+        aiModal.classList.add('hidden');
+        aiStatusPanel.classList.add('hidden');
+    }
+
+    if (closeAiModal) closeAiModal.addEventListener('click', closeAiModalFunc);
+    if (cancelAiBtn) cancelAiBtn.addEventListener('click', closeAiModalFunc);
+
+    if (startAiBtn) {
+        startAiBtn.addEventListener('click', () => {
+            const simTarget = parseFloat(document.getElementById('similarity-input').value) || 0.5;
+            const textModel = aiModelInput.value.trim() || 'llama3';
+            
+            aiStatusPanel.classList.remove('hidden');
+            aiStatusText.textContent = "Connecting to Ollama...";
+            startAiBtn.disabled = true;
+            cancelAiBtn.disabled = true;
+
+            const es = new EventSource(`/api/ai-group-stream?similarity=${simTarget}&model=${encodeURIComponent(textModel)}`);
+            
+            es.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'progress') {
+                    aiStatusText.textContent = data.message;
+                } else if (data.type === 'done') {
+                    es.close();
+                    groups = data.groups;
+                    renderBoard(groups);
+                    updateCounts();
+                    saveToLocal("Smart Grouped via Local AI");
+                    closeAiModalFunc();
+                    startAiBtn.disabled = false;
+                    cancelAiBtn.disabled = false;
+                } else if (data.type === 'error') {
+                    es.close();
+                    aiStatusText.textContent = "Error: " + data.error;
+                    aiStatusText.style.color = 'var(--danger)';
+                    startAiBtn.disabled = false;
+                    cancelAiBtn.disabled = false;
+                }
+            };
+            
+            es.onerror = (err) => {
+                es.close();
+                aiStatusText.textContent = "Connection lost or failed.";
+                aiStatusText.style.color = 'var(--danger)';
+                startAiBtn.disabled = false;
+                cancelAiBtn.disabled = false;
+            };
+        });
+    }
+
     // Auto Group Logic
     async function runAutoGroup(type) {
         if (!confirm(`Warning: Running this will automatically regroup all files. Your current layout will be overwritten (but you can Undo it). Proceed?`)) {
@@ -432,34 +494,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         lastKnownState = getCurrentState();
-        const similarity = similarityInput.value;
-        const regexStr = regexInput.value;
-        const btn = type === 'smart' ? smartBtn : type === 'ai' ? aiBtn : regexBtn;
-        const originalText = btn.textContent;
         
-        btn.textContent = type === 'ai' ? "Thinking..." : "Processing...";
+        if (type === 'ai') {
+            aiModal.classList.remove('hidden');
+            return;
+        }
+
+        const btn = document.getElementById(type + '-group-btn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ Working...';
         btn.disabled = true;
 
         try {
+            const reqBody = { type };
+            if (type === 'smart') reqBody.similarity = parseFloat(document.getElementById('similarity-input').value) || 0.4;
+            if (type === 'regex') reqBody.regex = document.getElementById('regex-input').value || '^([A-Za-z]+)-';
+            
             const res = await fetch('/api/auto-group', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, similarity, regex: regexStr })
+                body: JSON.stringify(reqBody)
             });
             const data = await res.json();
             
-            if (data.error) {
-                alert(`AI Grouping Failed:\n${data.error}`);
-                return;
-            }
+            if (data.error) throw new Error(data.error);
             
-            const label = type === 'ai' ? `AI Grouped (Sim: ${similarity})` 
-                          : type === 'smart' ? `Smart Grouped (Sim: ${similarity})` 
-                          : `Regex Grouped (${regexStr})`;
-                          
-            pushToHistory(label);
-            renderBoard(data.groups);
-            lastKnownState = getCurrentState();
+            groups = data.groups;
+            renderBoard(groups);
+            updateCounts();
+            
+            const typeName = type === 'smart' ? 'ML Smart Clustering' : 'Regex';
+            saveToLocal(`Auto-Grouped via ${typeName}`);
             
         } catch (err) {
             console.error("Auto Group Failed", err);
