@@ -304,4 +304,4 @@ async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'lla
     return finalGroups;
 }
 
-module.exports = { performAIGrouping };
+module.exports = { performAIGrouping, nameClustersWithLLM, ensureModel, checkOllama };

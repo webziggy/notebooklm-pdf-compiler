@@ -10,6 +10,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     const groupHoldingBtn = document.getElementById('group-holding-btn');
     
     // Auto Group Elements
+    const aiRenameBtn = document.getElementById('ai-rename-btn');
+    const aiRenameModal = document.getElementById('ai-rename-modal');
+    const closeAiRenameModal = document.getElementById('close-ai-rename-modal');
+    const cancelAiRenameBtn = document.getElementById('cancel-ai-rename-btn');
+    const startAiRenameBtn = document.getElementById('start-ai-rename-btn');
+    const aiRenameStatusPanel = document.getElementById('ai-rename-status-panel');
+    const aiRenameStatusText = document.getElementById('ai-rename-status-text');
+    const aiRenameModelInput = document.getElementById('ai-rename-model');
+    const aiRenameContextInput = document.getElementById('ai-rename-context');
+
+    if (aiRenameBtn) {
+        aiRenameBtn.addEventListener('click', () => {
+            aiRenameModal.classList.remove('hidden');
+        });
+        
+        [closeAiRenameModal, cancelAiRenameBtn].forEach(btn => {
+            btn.addEventListener('click', () => {
+                aiRenameModal.classList.add('hidden');
+                aiRenameStatusPanel.classList.add('hidden');
+                startAiRenameBtn.disabled = false;
+            });
+        });
+        
+        startAiRenameBtn.addEventListener('click', async () => {
+            const textModel = aiRenameModelInput.value.trim() || 'llama3';
+            const context = aiRenameContextInput.value.trim();
+            
+            aiRenameStatusPanel.classList.remove('hidden');
+            aiRenameStatusText.textContent = "Connecting to server...";
+            startAiRenameBtn.disabled = true;
+            
+            try {
+                const currentState = getCurrentState();
+                
+                const res = await fetch('/api/ai-rename-stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ groups: currentState.groups, model: textModel, context: context })
+                });
+                
+                if (!res.ok) throw new Error("Server rejected request");
+                
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunkStr = decoder.decode(value);
+                    const lines = chunkStr.split('\n').filter(l => l.trim() !== '');
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.type === 'progress') {
+                                aiRenameStatusText.textContent = data.message;
+                            } else if (data.type === 'error') {
+                                aiRenameStatusText.textContent = "Error: " + data.error;
+                                aiRenameStatusText.style.color = 'var(--danger)';
+                                startAiRenameBtn.disabled = false;
+                                return;
+                            } else if (data.type === 'done') {
+                                currentState.groups = data.groups;
+                                lastKnownState = currentState;
+                                pushToHistory("AI Renamed Clusters");
+                                renderBoard();
+                                
+                                aiRenameModal.classList.add('hidden');
+                                aiRenameStatusPanel.classList.add('hidden');
+                                startAiRenameBtn.disabled = false;
+                                showToast("Clusters successfully renamed by AI!");
+                            }
+                        } catch(e) { }
+                    }
+                }
+            } catch (err) {
+                aiRenameStatusText.textContent = "Error: " + err.message;
+                aiRenameStatusText.style.color = 'var(--danger)';
+                startAiRenameBtn.disabled = false;
+            }
+        });
+    }
+
     const regexBtn = document.getElementById('regex-group-btn');
     const regexInput = document.getElementById('regex-input');
     const smartBtn = document.getElementById('smart-group-btn');

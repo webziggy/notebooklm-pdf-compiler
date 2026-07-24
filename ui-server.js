@@ -162,6 +162,49 @@ function startUI(inputDir, groupsOutput) {
         res.end();
     });
 
+    app.post('/api/ai-rename-stream', async (req, res) => {
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const { groups, model, context } = req.body;
+        const textModel = model || 'llama3';
+        
+        try {
+            const { nameClustersWithLLM, checkOllama, ensureModel } = require('./ai-helper');
+            
+            const sendMsg = (msg) => {
+                res.write(JSON.stringify({ type: 'progress', message: msg }) + '\n');
+                console.log(`[AI-Rename] ${msg}`);
+            };
+            
+            sendMsg("Checking Ollama connection...");
+            const models = await checkOllama();
+            
+            let hasTextModel = models.some(m => m.name === textModel || m.name.startsWith(textModel + ':'));
+            if (!hasTextModel && textModel.toLowerCase() !== 'none') {
+                sendMsg(`Model '${textModel}' not found. Downloading...`);
+                await ensureModel(textModel, sendMsg);
+            }
+            
+            const holdingArea = groups["Holding Area"];
+            const ungrouped = groups["Ungrouped"];
+            delete groups["Holding Area"];
+            delete groups["Ungrouped"];
+            
+            sendMsg(`Using ${textModel} to generate smart folder names...`);
+            const renamedGroups = await nameClustersWithLLM(groups, textModel, context || '', sendMsg);
+            
+            if (holdingArea) renamedGroups["Holding Area"] = holdingArea;
+            if (ungrouped) renamedGroups["Ungrouped"] = ungrouped;
+            
+            res.write(JSON.stringify({ type: 'done', groups: renamedGroups }) + '\n');
+        } catch (err) {
+            res.write(JSON.stringify({ type: 'error', error: err.message }) + '\n');
+        }
+        res.end();
+    });
+
     // API to delete a specific version
     app.delete('/api/delete-file', (req, res) => {
         const { filename } = req.body;
