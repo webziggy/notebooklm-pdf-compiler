@@ -55,8 +55,44 @@ function startUI(inputDir, groupsOutput) {
             const similarityTarget = parseFloat(similarity) || 0.4;
             const distanceCut = Math.max(0.01, Math.min(0.99, 1.0 - similarityTarget));
             const clusters = tree.cut(distanceCut);
+            
+            const existingNames = new Set(["Ungrouped", "Holding Area"]);
+            
+            function getUniqueName(baseName) {
+                let name = baseName;
+                let counter = 2;
+                while (existingNames.has(name)) {
+                    name = `${baseName}_${counter}`;
+                    counter++;
+                }
+                existingNames.add(name);
+                return name;
+            }
+
             clusters.forEach((cluster, idx) => {
-                groups[`Cluster_${idx + 1}`] = cluster.indices().map(fileIdx => files[fileIdx]).sort();
+                const clusterFiles = cluster.indices().map(fileIdx => files[fileIdx]).sort();
+                
+                const bases = clusterFiles.map(f => f.replace(/\.pdf$/i, ''));
+                const first = bases[0];
+                let maxStr = "";
+                for (let i = 0; i < first.length; i++) {
+                    for (let j = i + 1; j <= first.length; j++) {
+                        const sub = first.substring(i, j);
+                        if (sub.length > maxStr.length && bases.every(s => s.includes(sub))) {
+                            maxStr = sub;
+                        }
+                    }
+                }
+
+                let cleanName = maxStr.replace(/[^a-zA-Z0-9 -_]/g, '').trim();
+                cleanName = cleanName.replace(/^[-_]+|[-_]+$/g, ''); 
+
+                if (cleanName.length < 3) {
+                    cleanName = "Cluster";
+                }
+                
+                const finalName = getUniqueName(cleanName);
+                groups[finalName] = clusterFiles;
             });
         } else {
             // Regex Suggest
