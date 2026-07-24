@@ -1,7 +1,7 @@
 {
   "name": "notebooklm-pdf-compiler",
-  "version": "1.0.0",
-  "description": "Stitch massive PDF directories into perfectly chunked volumes that comply with Google NotebookLM's strict 500,000 word and 200MB limits.",
+  "version": "1.1.0",
+  "description": "Stitches multiple PDFs together into chunked volumes that perfectly comply with Google NotebookLM's strict upload limits",
   "main": "index.js",
   "bin": {
     "notebooklm-compiler": "./launcher.js"
