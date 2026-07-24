@@ -12,9 +12,17 @@ function startUI(inputDir, groupsOutput) {
 
     // API to get current groups and all available files
     app.get('/api/data', (req, res) => {
+        const reqFile = req.query.file;
+        let targetFile = reqFile || 'groups.json';
+        
+        // Find all group files for versioning
+        const allFiles = fs.readdirSync(path.dirname(groupsOutput));
+        const groupFiles = allFiles.filter(f => f.startsWith('groups') && f.endsWith('.json')).sort();
+
         let groups = {};
-        if (fs.existsSync(groupsOutput)) {
-            groups = JSON.parse(fs.readFileSync(groupsOutput, 'utf8'));
+        const targetPath = path.join(path.dirname(groupsOutput), targetFile);
+        if (fs.existsSync(targetPath)) {
+            groups = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
         }
 
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
@@ -23,7 +31,20 @@ function startUI(inputDir, groupsOutput) {
         const ungrouped = files.filter(f => !groupedFiles.has(f));
         groups['Ungrouped'] = ungrouped;
 
-        res.json({ groups });
+        res.json({ groups, groupFiles, currentFile: targetFile });
+    });
+
+    // API to delete a specific version
+    app.delete('/api/delete-file', (req, res) => {
+        const { filename } = req.body;
+        if (filename && filename.startsWith('groups') && filename.endsWith('.json')) {
+            const targetPath = path.join(path.dirname(groupsOutput), filename);
+            if (fs.existsSync(targetPath)) {
+                fs.unlinkSync(targetPath);
+                return res.json({ success: true });
+            }
+        }
+        res.status(400).json({ error: "Invalid file" });
     });
 
     // API to save groups and shutdown
@@ -37,8 +58,16 @@ function startUI(inputDir, groupsOutput) {
             }
         }
         
+        // Save to a versioned timestamp
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const versionedOutput = path.join(path.dirname(groupsOutput), `groups_${ts}.json`);
+        
+        fs.writeFileSync(versionedOutput, JSON.stringify(finalGroups, null, 2));
+        
+        // Update the main groups.json pointer
         fs.writeFileSync(groupsOutput, JSON.stringify(finalGroups, null, 2));
-        console.log(`\n[UI] Successfully saved to ${groupsOutput}!`);
+        
+        console.log(`\n[UI] Successfully saved to ${versionedOutput} and updated groups.json!`);
         console.log(`[UI] Shutting down web server. You can now run compilation.`);
         res.json({ success: true });
         

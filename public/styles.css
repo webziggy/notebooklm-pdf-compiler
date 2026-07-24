@@ -71,6 +71,48 @@ body {
     color: var(--text-secondary);
 }
 
+.file-manager {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.file-select {
+    background: transparent;
+    color: var(--text-primary);
+    border: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.file-select option {
+    background: var(--bg-main);
+}
+
+.btn.delete-btn {
+    background: transparent;
+    border: none;
+    padding: 0.25rem;
+    font-size: 1rem;
+    color: var(--danger);
+    opacity: 0.7;
+}
+
+.btn.delete-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.hidden {
+    display: none !important;
+}
+
 .btn {
     padding: 0.5rem 1rem;
     border-radius: 6px;
