@@ -135,6 +135,7 @@ function startUI(inputDir, groupsOutput) {
         const textModel = req.query.model || 'llama3';
         const context = req.query.context || '';
         const embedModel = req.query.embedModel || 'nomic-embed-text';
+        const sanitize = req.query.sanitize !== 'false';
         
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
         
@@ -148,7 +149,7 @@ function startUI(inputDir, groupsOutput) {
 
         try {
             const { performAIGrouping } = require('./ai-helper');
-            const groups = await performAIGrouping(files, similarity, textModel, context, embedModel, (msg) => {
+            const groups = await performAIGrouping(files, similarity, textModel, context, embedModel, sanitize, (msg) => {
                 res.write(`data: ${JSON.stringify({ type: 'progress', message: msg })}\n\n`);
                 console.log(`[AI-Group] ${msg}`);
             }, abortController.signal);
@@ -186,8 +187,9 @@ function startUI(inputDir, groupsOutput) {
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
-        const { groups, model, context } = req.body;
+        const { groups, model, context, sanitize } = req.body;
         const textModel = model || 'llama3';
+        const shouldSanitize = sanitize !== false;
         
         const abortController = new AbortController();
         res.on('close', () => {
@@ -222,7 +224,7 @@ function startUI(inputDir, groupsOutput) {
             delete groups["Ungrouped"];
             
             sendMsg(`Using ${textModel} to generate smart folder names...`);
-            const renamedGroups = await nameClustersWithLLM(groups, textModel, context || '', sendMsg, abortController.signal);
+            const renamedGroups = await nameClustersWithLLM(groups, textModel, context || '', sendMsg, abortController.signal, shouldSanitize);
             
             if (holdingArea) renamedGroups["Holding Area"] = holdingArea;
             if (ungrouped) renamedGroups["Ungrouped"] = ungrouped;

@@ -164,7 +164,8 @@ const compressionTimeoutMs = parseInt(getArgValue('--timeout', 5), 10) * 60 * 10
 const runAi = args.includes('--ai');
 const aiModel = getArgValue('--ai-model', 'llama3');
 const aiContext = getArgValue('--ai-context', '');
-const embedModel = getArgValue('--embed-model', 'nomic-embed-text');
+const aiEmbedModel = getArgValue('--embed-model', 'nomic-embed-text');
+const sanitize = !args.includes('--no-sanitize');
 
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
@@ -240,7 +241,7 @@ if (args.includes('--suggest-groups') || args.includes('--smart-groups') || runA
                 const { performAIGrouping } = require('./ai-helper');
                 (async () => {
                     try {
-                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, '${aiModel}', ${JSON.stringify(aiContext)}, '${embedModel}', (msg) => console.log(msg));
+                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, '${aiModel}', ${JSON.stringify(aiContext)}, '${aiEmbedModel}', ${sanitize}, (msg) => console.log(msg));
                         console.log('__JSON_START__' + JSON.stringify(res) + '__JSON_END__');
                     } catch(err) {
                         console.error('__ERR_START__' + err.message + '__ERR_END__');

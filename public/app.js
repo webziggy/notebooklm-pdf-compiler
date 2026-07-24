@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const aiRenameStatusText = document.getElementById('ai-rename-status-text');
     const aiRenameModelInput = document.getElementById('ai-rename-model');
     const aiRenameContextInput = document.getElementById('ai-rename-context');
+    const aiRenameSanitizeInput = document.getElementById('ai-rename-sanitize');
 
     let activeRenameController = null;
 
@@ -42,6 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         startAiRenameBtn.addEventListener('click', async () => {
             const textModel = aiRenameModelInput.value.trim() || 'llama3';
             const context = aiRenameContextInput.value.trim();
+            const sanitize = aiRenameSanitizeInput.checked;
             
             aiRenameStatusPanel.classList.remove('hidden');
             aiRenameStatusText.textContent = "Connecting to server...";
@@ -54,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const res = await fetch('/api/ai-rename-stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ groups: currentState.groups, model: textModel, context: context }),
+                    body: JSON.stringify({ groups: currentState.groups, model: textModel, context: context, sanitize: sanitize }),
                     signal: activeRenameController.signal
                 });
                 
@@ -132,7 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const payload = { groups: {} };
         payload.groups['Holding Area'] = Array.from(ungroupedList.children).map(c => c.dataset.file);
         
-        const groupCols = document.querySelectorAll('.group-col');
+        const groupCols = document.querySelectorAll('.board-column');
         groupCols.forEach(col => {
             const name = col.querySelector('.group-name-input').textContent.trim() || 'Unnamed_Group';
             const files = Array.from(col.querySelector('.sortable-list').children).map(c => c.dataset.file);
@@ -819,6 +821,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const startAiBtn = document.getElementById('start-ai-btn');
     const aiModelInput = document.getElementById('ai-model-input');
     const aiContextInput = document.getElementById('ai-context-input');
+    const aiEmbedModelInput = document.getElementById('ai-embed-model-input');
+    const aiSanitizeInput = document.getElementById('ai-sanitize-input');
     const aiStatusPanel = document.getElementById('ai-status-panel');
     const aiStatusText = document.getElementById('ai-status-text');
 
@@ -840,21 +844,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (startAiBtn) {
         startAiBtn.addEventListener('click', () => {
-            const simTarget = parseFloat(document.getElementById('similarity-input').value) || 0.5;
-            const aiEmbedModelInput = document.getElementById('ai-embed-model-input');
-            const embedModel = aiEmbedModelInput ? aiEmbedModelInput.value.trim() : 'nomic-embed-text';
-            const textModel = aiModelInput.value.trim() || 'llama3';
+            const similarity = parseFloat(document.getElementById('similarity-input').value) || 0.5;
+            const model = aiModelInput.value.trim() || 'llama3';
             const context = aiContextInput.value.trim();
+            const embedModel = aiEmbedModelInput ? aiEmbedModelInput.value.trim() : 'nomic-embed-text';
+            const sanitize = aiSanitizeInput.checked;
             
             aiStatusPanel.classList.remove('hidden');
             aiStatusText.textContent = "Connecting to Ollama...";
             startAiBtn.disabled = true;
 
-            let sseUrl = `/api/ai-group-stream?similarity=${simTarget}&model=${encodeURIComponent(textModel)}&embedModel=${encodeURIComponent(embedModel)}`;
-            if (context) {
-                sseUrl += `&context=${encodeURIComponent(context)}`;
-            }
-            activeEventSource = new EventSource(sseUrl);
+            const url = `/api/ai-group-stream?similarity=${similarity}&model=${encodeURIComponent(model)}&context=${encodeURIComponent(context)}&embedModel=${encodeURIComponent(embedModel)}&sanitize=${sanitize}`;
+            activeEventSource = new EventSource(url);
             
             activeEventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
@@ -864,8 +865,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else if (data.type === 'done') {
                     activeEventSource.close();
                     activeEventSource = null;
-                    groups = data.groups;
-                    renderBoard(groups);
+                    renderBoard(data.groups);
                     updateCounts();
                     saveToLocal("Smart Grouped via Local AI");
                     closeAiModalFunc();
@@ -910,8 +910,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const reqBody = { type };
-            if (type === 'smart') reqBody.similarity = parseFloat(document.getElementById('similarity-input').value) || 0.4;
-            if (type === 'regex') reqBody.regex = document.getElementById('regex-input').value || '^([A-Za-z]+)-';
+            if (type === 'smart') {
+                reqBody.similarity = parseFloat(document.getElementById('similarity-input').value) || 0.4;
+                reqBody.sanitize = document.getElementById('smart-sanitize-input')?.checked || false;
+            }
+            if (type === 'regex') {
+                reqBody.regex = document.getElementById('regex-input').value || '^([A-Za-z]+)-';
+                reqBody.sanitize = document.getElementById('regex-sanitize-input')?.checked || false;
+            }
             
             const res = await fetch('/api/auto-group', {
                 method: 'POST',
@@ -922,8 +928,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             if (data.error) throw new Error(data.error);
             
-            groups = data.groups;
-            renderBoard(groups);
+            renderBoard(data.groups);
             updateCounts();
             
             const typeName = type === 'smart' ? 'ML Smart Clustering' : 'Regex';
