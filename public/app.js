@@ -222,12 +222,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
-        const statsText = document.getElementById('stats-text');
-        if (statsText) {
-            statsText.innerHTML = `Total Groups: <strong style="color: ${totalGroups > 50 ? 'var(--danger)' : 'inherit'}">${totalGroups}</strong> | Files Mapped: ${totalFiles}`;
-            
+        const groupsVal = document.getElementById('stat-groups-val');
+        const filesVal = document.getElementById('stat-files-val');
+        const warningBadge = document.getElementById('stat-warning');
+        
+        if (groupsVal) groupsVal.textContent = totalGroups;
+        if (filesVal) filesVal.textContent = totalFiles;
+        
+        if (warningBadge) {
             if (totalGroups > 50) {
-                statsText.innerHTML += ` <span style="color: var(--danger); font-weight: bold; margin-left: 8px;">⚠️ Exceeds NotebookLM limit (50 sources)</span>`;
+                warningBadge.classList.remove('hidden');
+                groupsVal.style.color = '#fca5a5';
+            } else {
+                warningBadge.classList.add('hidden');
+                groupsVal.style.color = 'var(--text-primary)';
             }
         }
     }

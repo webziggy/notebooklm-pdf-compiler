@@ -15,7 +15,20 @@
         <div class="header-title">
             <h1>NotebookLM PDF Compiler</h1>
             <p>Drag and drop PDFs to organize your compilation.</p>
-            <p id="stats-text" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Total Groups: 0 | Files Mapped: 0</p>
+            <div class="stats-container">
+                <div class="stat-badge">
+                    <span class="stat-label">Groups</span>
+                    <span class="stat-value" id="stat-groups-val">0</span>
+                    <span class="stat-limit">/ 50</span>
+                </div>
+                <div class="stat-badge">
+                    <span class="stat-label">Files Mapped</span>
+                    <span class="stat-value" id="stat-files-val">0</span>
+                </div>
+                <div class="stat-badge warning hidden" id="stat-warning">
+                    ⚠️ Exceeds NotebookLM Limit
+                </div>
+            </div>
         </div>
         
         <div class="file-manager">
