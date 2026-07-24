@@ -134,12 +134,13 @@ function startUI(inputDir, groupsOutput) {
         const similarity = parseFloat(req.query.similarity) || 0.5;
         const textModel = req.query.model || 'llama3';
         const context = req.query.context || '';
+        const embedModel = req.query.embedModel || 'nomic-embed-text';
         
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
         
         try {
             const { performAIGrouping } = require('./ai-helper');
-            const groups = await performAIGrouping(files, similarity, textModel, context, (msg) => {
+            const groups = await performAIGrouping(files, similarity, textModel, context, embedModel, (msg) => {
                 res.write(`data: ${JSON.stringify({ type: 'progress', message: msg })}\n\n`);
                 console.log(`[AI-Group] ${msg}`);
             });
@@ -160,6 +161,16 @@ function startUI(inputDir, groupsOutput) {
             res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
         }
         res.end();
+    });
+
+    app.get('/api/ollama-models', async (req, res) => {
+        try {
+            const { checkOllama } = require('./ai-helper');
+            const models = await checkOllama();
+            res.json({ models });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
     });
 
     app.post('/api/ai-rename-stream', async (req, res) => {

@@ -102,7 +102,8 @@ const args = process.argv.slice(2);
 const validOptions = new Set([
     '--help', '-h', '--input', '--output', '--logs', '--groups', 
     '--suggest-groups', '--smart-groups', '--similarity', '--grouping-ui',
-    '--compress', '--dry-run', '--max-words', '--max-mb', '--timeout'
+    '--compress', '--dry-run', '--max-words', '--max-mb', '--timeout',
+    '--ai', '--ai-model', '--ai-context', '--embed-model'
 ]);
 
 for (const arg of args) {
@@ -136,6 +137,7 @@ Options:
   --ai               Use Ollama for smart semantic clustering
   --ai-model <model> Ollama model to use for smart naming (default: llama3)
   --ai-context <ctx> Additional context prompt to guide the LLM naming
+  --embed-model <m>  Ollama model to use for embeddings (default: nomic-embed-text)
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
   --max-mb <num>     Override the default file size limit in MB (default: 180)
@@ -162,6 +164,7 @@ const compressionTimeoutMs = parseInt(getArgValue('--timeout', 5), 10) * 60 * 10
 const runAi = args.includes('--ai');
 const aiModel = getArgValue('--ai-model', 'llama3');
 const aiContext = getArgValue('--ai-context', '');
+const embedModel = getArgValue('--embed-model', 'nomic-embed-text');
 
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
@@ -237,7 +240,7 @@ if (args.includes('--suggest-groups') || args.includes('--smart-groups') || runA
                 const { performAIGrouping } = require('./ai-helper');
                 (async () => {
                     try {
-                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, '${aiModel}', ${JSON.stringify(aiContext)}, (msg) => console.log(msg));
+                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, '${aiModel}', ${JSON.stringify(aiContext)}, '${embedModel}', (msg) => console.log(msg));
                         console.log('__JSON_START__' + JSON.stringify(res) + '__JSON_END__');
                     } catch(err) {
                         console.error('__ERR_START__' + err.message + '__ERR_END__');

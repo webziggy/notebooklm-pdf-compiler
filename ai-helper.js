@@ -239,16 +239,14 @@ RULES:
     return namedGroups;
 }
 
-async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'llama3', context = '', onProgress) {
-    const EMBED_MODEL = 'nomic-embed-text';
-    
+async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'llama3', context = '', embedModel = 'nomic-embed-text', onProgress) {
     if (onProgress) onProgress("Checking Ollama connection...");
     const models = await checkOllama();
     
-    await ensureModel(EMBED_MODEL, onProgress);
+    await ensureModel(embedModel, onProgress);
     
     if (onProgress) onProgress("Generating semantic embeddings for files...");
-    const embeddings = await getEmbeddings(files, EMBED_MODEL);
+    const embeddings = await getEmbeddings(files, embedModel);
     
     if (onProgress) onProgress("Calculating semantic distances...");
     const hclust = require('ml-hclust');

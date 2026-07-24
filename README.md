@@ -66,8 +66,19 @@ If you want your PDFs stitched into logical categories rather than one massive c
 > 
 > *   **Use `--suggest-groups` (Regex)** when your filenames have a strict, predictable naming convention (e.g. `INV-001.pdf`, `INV-002.pdf`, `REP-001.pdf`). This will perfectly group all `INV` files into an "INV" cluster.
 > *   **Use `--smart-groups` (String Similarity)** when your filenames are messy and inconsistent, but share common character patterns (e.g. `invoice_jan_final.pdf`, `feb-invoice-v2.pdf`). This uses mathematical string matching (AGNES).
-> *   **Use `--ai-groups` (Semantic Embeddings)** when files have completely different names but mean the same thing (e.g. `Q3_Earnings.pdf` and `Financial_Statement.pdf`). This requires **Ollama** to be running locally. It will automatically download the lightweight `nomic-embed-text` model to embed your filenames, group them by pure meaning, and even try to use `llama3` to generate beautiful context-aware folder names!
-
+> *   **Use `--ai` (Semantic Embeddings)** when files have completely different names but mean the same thing (e.g. `Q3_Earnings.pdf` and `Financial_Statement.pdf`). This requires **Ollama** to be running locally. It will automatically download the default lightweight `nomic-embed-text` model to embed your filenames, group them by pure meaning, and even try to use `llama3` to generate beautiful context-aware folder names!
+>
+> ### Recommended Alternative AI Models
+> 
+> The CLI and Web GUI fully support alternative models via Ollama. You can significantly improve performance or accuracy by trying these models (simply run `ollama pull <model>` in your terminal before using them):
+> 
+> **For Semantic Clustering (Embeddings):**
+> *   `nomic-embed-text` *(Default)*: Fantastic all-rounder for general clustering.
+> *   `mxbai-embed-large`: Currently dominates leaderboards for its size. Creates highly accurate representations for short phrases like filenames.
+> 
+> **For Smart Naming (LLM):**
+> *   `llama3` *(Default)*: Fast and smart 8B parameter model.
+> *   `phi3` or `gemma2:2b`: Tiny, blazing-fast Small Language Models (SLMs) that strictly adhere to formatting instructions, making them perfect for generating 2-3 word folder names instantly.
 ### Grouping UI (Visual Editor)
 If you run `notebooklm-compiler --grouping-ui`, a local web server will spin up and open a Kanban-style interface in your browser. From here you can:
 - Drag and drop files between groups
@@ -136,12 +147,19 @@ If your input directory contains fundamentally corrupted PDFs, empty shells, or 
 | `--output <dir>` | Directory where the stitched volumes will be saved | `./output` |
 | `--logs <dir>` | Directory where the log files will be saved | `./logs` |
 | `--groups <file>` | Path to your `groups.json` file | (None) |
-| `--suggest-groups` | Auto-scans `input/` and builds a `groups.json` | `false` |
+| `--suggest-groups` | Auto-scans `input/` and builds a `groups.json` using Regex | `false` |
+| `--smart-groups` | Mathematically clusters files based on string similarity | `false` |
+| `--ai` | Uses local Ollama LLMs to semantically cluster files by meaning | `false` |
+| `--ai-model <model>` | Ollama text model to use for generating smart folder names | `llama3` |
+| `--ai-context <ctx>` | Optional context prompt to help the LLM name folders accurately | `""` |
+| `--embed-model <model>`| Ollama embedding model for semantic similarity comparisons | `nomic-embed-text` |
+| `--similarity <num>` | Similarity cutoff for grouping (0.1 to 0.9) | `0.4` or `0.5` |
+| `--grouping-ui` | Launches the interactive visual Kanban-board for groups | `false` |
 | `--compress` | Enables Pre-Compression caching (Highly Recommended) | `false` |
 | `--dry-run` | Simulates the chunking math without writing actual PDFs | `false` |
-| `--max-words` | The maximum word count per volume | `450000` (Leaves 50k buffer) |
-| `--max-mb` | The maximum physical file size per volume | `180` (Leaves 20MB buffer) |
-| `--timeout` | Max minutes to allow compression per file before aborting | `5` |
+| `--max-words <num>`| The maximum word count per volume | `450000` |
+| `--max-mb <num>` | The maximum physical file size per volume (in MB) | `180` |
+| `--timeout <min>` | Max minutes to allow compression per file before aborting | `5` |
 
 ## Hidden Files & The Cache System (`.compiler-cache/`)
 When you use the `--compress` flag, the compiler spins up multi-threaded background workers to physically compress your PDFs *before* doing the math to split them. This is critical because it minimizes unnecessary splits and prevents you from wasting your 50 NotebookLM source slots.

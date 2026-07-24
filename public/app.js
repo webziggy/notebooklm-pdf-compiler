@@ -820,6 +820,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (startAiBtn) {
         startAiBtn.addEventListener('click', () => {
             const simTarget = parseFloat(document.getElementById('similarity-input').value) || 0.5;
+            const aiEmbedModelInput = document.getElementById('ai-embed-model-input');
+            const embedModel = aiEmbedModelInput ? aiEmbedModelInput.value.trim() : 'nomic-embed-text';
             const textModel = aiModelInput.value.trim() || 'llama3';
             const context = aiContextInput.value.trim();
             
@@ -828,7 +830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             startAiBtn.disabled = true;
             cancelAiBtn.disabled = true;
 
-            let sseUrl = `/api/ai-group-stream?similarity=${simTarget}&model=${encodeURIComponent(textModel)}`;
+            let sseUrl = `/api/ai-group-stream?similarity=${simTarget}&model=${encodeURIComponent(textModel)}&embedModel=${encodeURIComponent(embedModel)}`;
             if (context) {
                 sseUrl += `&context=${encodeURIComponent(context)}`;
             }
@@ -951,4 +953,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initial load
     loadData();
+    
+    // Fetch installed Ollama models and populate datalist
+    try {
+        fetch('/api/ollama-models')
+            .then(res => res.json())
+            .then(data => {
+                const datalist = document.getElementById('ollama-models-list');
+                if (datalist && data.models) {
+                    // Start with some smart defaults that might not be installed yet
+                    const defaults = ['nomic-embed-text', 'mxbai-embed-large', 'llama3', 'gemma2:2b', 'phi3'];
+                    const installedNames = new Set(data.models.map(m => m.name));
+                    
+                    const allModels = [...new Set([...defaults, ...data.models.map(m => m.name)])];
+                    
+                    allModels.forEach(modelName => {
+                        const option = document.createElement('option');
+                        option.value = modelName;
+                        if (installedNames.has(modelName)) {
+                            const modelData = data.models.find(m => m.name === modelName);
+                            if (modelData && modelData.size) {
+                                const sizeGB = (modelData.size / (1024 * 1024 * 1024)).toFixed(1);
+                                option.textContent = `${modelName} (${sizeGB} GB - Installed)`;
+                            } else {
+                                option.textContent = `${modelName} (Installed)`;
+                            }
+                        } else {
+                            option.textContent = `${modelName} (Will download)`;
+                        }
+                        datalist.appendChild(option);
+                    });
+                }
+            })
+            .catch(err => console.error("Could not fetch Ollama models:", err));
+    } catch (e) {
+        console.error(e);
+    }
 });
