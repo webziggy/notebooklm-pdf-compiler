@@ -224,7 +224,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const statsText = document.getElementById('stats-text');
         if (statsText) {
-            statsText.textContent = `Total Groups: ${totalGroups} | Files Mapped: ${totalFiles}`;
+            statsText.innerHTML = `Total Groups: <strong style="color: ${totalGroups > 50 ? 'var(--danger)' : 'inherit'}">${totalGroups}</strong> | Files Mapped: ${totalFiles}`;
+            
+            if (totalGroups > 50) {
+                statsText.innerHTML += ` <span style="color: var(--danger); font-weight: bold; margin-left: 8px;">⚠️ Exceeds NotebookLM limit (50 sources)</span>`;
+            }
         }
     }
 
