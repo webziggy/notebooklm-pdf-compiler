@@ -75,11 +75,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Automatically dump files to Ungrouped when deleting a column
         deleteBtn.addEventListener('click', () => {
-            const cards = Array.from(list.children);
-            cards.forEach(card => ungroupedList.appendChild(card));
-            col.remove();
-            updateCounts();
-            saveToLocal();
+            if (confirm(`Are you sure you want to delete "${input.value}"? Any files inside will be moved to the Ungrouped Bucket.`)) {
+                const cards = Array.from(list.children);
+                cards.forEach(card => ungroupedList.appendChild(card));
+                col.remove();
+                updateCounts();
+                saveToLocal();
+            }
         });
 
         makeSortable(list);
