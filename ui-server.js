@@ -1,7 +1,6 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const open = require('open');
 
 function startUI(inputDir, groupsOutput) {
     const app = express();
@@ -85,7 +84,8 @@ function startUI(inputDir, groupsOutput) {
         console.log(`Grouping UI server running on http://localhost:${port}`);
         console.log(`Opening your default browser...`);
         console.log(`===========================================\n`);
-        await open(`http://localhost:${port}`);
+        const openModule = await import('open');
+        await openModule.default(`http://localhost:${port}`);
     });
 }
 
