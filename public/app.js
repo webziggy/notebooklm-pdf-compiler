@@ -80,10 +80,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 startAiRenameBtn.disabled = false;
                                 return;
                             } else if (data.type === 'done') {
-                                currentState.groups = data.groups;
-                                lastKnownState = currentState;
-                                pushToHistory("AI Renamed Clusters");
-                                renderBoard();
+                                renderBoard(data.groups);
+                                updateCounts();
+                                saveToLocal("AI Renamed Clusters");
                                 
                                 aiRenameModal.classList.add('hidden');
                                 aiRenameStatusPanel.classList.add('hidden');
