@@ -50,16 +50,64 @@ async function checkOllama() {
     }
 }
 
+async function pullModelStream(modelName, onProgress) {
+    return new Promise((resolve, reject) => {
+        const options = {
+            hostname: 'localhost',
+            port: 11434,
+            path: '/api/pull',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        };
+
+        const req = http.request(options, (res) => {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+                return reject(new Error(`Ollama API error: ${res.statusCode}`));
+            }
+
+            let buffer = '';
+            res.on('data', (chunk) => {
+                buffer += chunk.toString();
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep incomplete line
+                
+                // Throttle updates slightly to avoid flooding the UI
+                const now = Date.now();
+                if (!res.lastUpdate || now - res.lastUpdate > 1000) {
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const json = JSON.parse(line);
+                            if (json.status && onProgress) {
+                                if (json.total && json.completed) {
+                                    const percent = ((json.completed / json.total) * 100).toFixed(1);
+                                    onProgress(`Downloading ${modelName}: ${percent}%`);
+                                } else {
+                                    onProgress(`Downloading ${modelName}: ${json.status}`);
+                                }
+                            }
+                        } catch (e) { }
+                    }
+                    res.lastUpdate = now;
+                }
+            });
+
+            res.on('end', resolve);
+        });
+
+        req.on('error', reject);
+        req.write(JSON.stringify({ name: modelName, stream: true }));
+        req.end();
+    });
+}
+
 async function ensureModel(modelName, onProgress) {
     const models = await checkOllama();
     const hasModel = models.some(m => m.name === modelName || m.name.startsWith(modelName + ':'));
     
     if (!hasModel) {
-        if (onProgress) onProgress(`Downloading ${modelName}... This may take a moment.`);
-        // Note: The simple HTTP wrapper above buffers the whole response.
-        // For a pull, it might be better to just let it buffer, but it can take a while.
-        // We set stream: false so it just waits and returns success when done.
-        await makeRequest('POST', '/api/pull', { name: modelName, stream: false });
+        if (onProgress) onProgress(`Starting download for ${modelName}...`);
+        await pullModelStream(modelName, onProgress);
         if (onProgress) onProgress(`Finished downloading ${modelName}.`);
     }
 }
@@ -97,7 +145,16 @@ function cosineSimilarity(vecA, vecB) {
 function getUniqueName(baseName, existingNames) {
     let name = baseName;
     let counter = 2;
-    while (existingNames.has(name)) {
+    
+    const checkExists = (n) => {
+        const lowerN = n.toLowerCase();
+        for (const existing of existingNames) {
+            if (existing.toLowerCase() === lowerN) return true;
+        }
+        return false;
+    };
+
+    while (checkExists(name)) {
         name = `${baseName}_${counter}`;
         counter++;
     }
@@ -127,8 +184,7 @@ function nameClusterLCS(files, existingNames) {
     return getUniqueName(cleanName, existingNames);
 }
 
-async function nameClustersWithLLM(groupedFilesMap, textModel) {
-    // Convert map to array of lists
+async function nameClustersWithLLM(groupedFilesMap, textModel, onProgress) {
     const clusters = Object.values(groupedFilesMap);
     
     const prompt = `
@@ -145,6 +201,7 @@ __FILES__
     const namedGroups = {};
     const existingNames = new Set(["Ungrouped", "Holding Area"]);
 
+    let clusterIndex = 1;
     for (const files of clusters) {
         if (files.length === 0) continue;
         
@@ -160,17 +217,20 @@ __FILES__
             });
             
             let suggestedName = (res.response || "").trim();
-            // Clean up LLM output (remove quotes, weird chars)
             suggestedName = suggestedName.replace(/["']/g, '').replace(/[^a-zA-Z0-9 -_]/g, '').trim();
+            suggestedName = suggestedName.replace(/^[-_]+|[-_]+$/g, ''); 
+            
             if (suggestedName.length < 2) suggestedName = "Cluster";
             
             const finalName = getUniqueName(suggestedName, existingNames);
             namedGroups[finalName] = files;
+            if (onProgress) onProgress(`Named cluster ${clusterIndex}/${clusters.length}: ${finalName}`);
         } catch (err) {
-            // Fallback to LCS on failure
             const finalName = nameClusterLCS(files, existingNames);
             namedGroups[finalName] = files;
+            if (onProgress) onProgress(`Named cluster ${clusterIndex}/${clusters.length} (fallback): ${finalName}`);
         }
+        clusterIndex++;
     }
     
     return namedGroups;
@@ -228,7 +288,7 @@ async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'lla
     let finalGroups = {};
     if (hasTextModel && textModel.toLowerCase() !== 'none') {
         if (onProgress) onProgress(`Using ${textModel} to generate smart folder names...`);
-        finalGroups = await nameClustersWithLLM(tempGroups, textModel);
+        finalGroups = await nameClustersWithLLM(tempGroups, textModel, onProgress);
     } else {
         if (onProgress) onProgress(`Naming clusters using common prefix algorithm...`);
         const existingNames = new Set(["Ungrouped", "Holding Area"]);
