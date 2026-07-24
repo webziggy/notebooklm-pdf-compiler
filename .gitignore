@@ -10,3 +10,9 @@ logs/
 
 # npm
 package-lock.json
+
+# Gemini AI / Rules
+.gemini/
+
+# Generated grouping configs
+groups*.json
