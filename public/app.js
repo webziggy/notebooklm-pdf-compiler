@@ -850,7 +850,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             aiStatusPanel.classList.remove('hidden');
             aiStatusText.textContent = "Connecting to Ollama...";
             startAiBtn.disabled = true;
-            cancelAiBtn.disabled = true;
 
             let sseUrl = `/api/ai-group-stream?similarity=${simTarget}&model=${encodeURIComponent(textModel)}&embedModel=${encodeURIComponent(embedModel)}`;
             if (context) {
