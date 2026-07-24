@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const payload = { groups: {} };
         payload.groups['Holding Area'] = Array.from(ungroupedList.children).map(c => c.dataset.file);
         
-        const groupCols = document.querySelectorAll('.board-column');
+        const groupCols = document.querySelectorAll('.group-col');
         groupCols.forEach(col => {
             const name = col.querySelector('.group-name-input').textContent.trim() || 'Unnamed_Group';
             const files = Array.from(col.querySelector('.sortable-list').children).map(c => c.dataset.file);
