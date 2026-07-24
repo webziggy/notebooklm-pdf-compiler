@@ -498,35 +498,101 @@ document.addEventListener('DOMContentLoaded', async () => {
         groupsContainer.scrollLeft = 0;
     });
 
-    // Search Filtering
+    // Filtering Logic
+    let activeColors = ['all'];
+    let currentSearchTerm = '';
+
+    function applyFilters() {
+        const allCols = document.querySelectorAll('.board-column');
+        const groupsContainer = document.getElementById('groups-container');
+        let visibleCount = 0;
+        let totalCount = 0;
+        
+        allCols.forEach(col => {
+            if (col.id === 'ungrouped-container') return;
+            totalCount++;
+            
+            // 1. Text Filter
+            const visibleCards = Array.from(col.querySelectorAll('.pdf-card')).filter(c => {
+                if (currentSearchTerm === '') {
+                    c.style.display = 'flex';
+                    return true;
+                }
+                const matches = c.dataset.file.toLowerCase().includes(currentSearchTerm);
+                c.style.display = matches ? 'flex' : 'none';
+                return matches;
+            });
+            
+            const matchesText = currentSearchTerm === '' || visibleCards.length > 0;
+            
+            // 2. Color Filter
+            let matchesColor = true;
+            if (!activeColors.includes('all')) {
+                const select = col.querySelector('.group-color-picker');
+                const colColor = select ? select.value : 'transparent';
+                matchesColor = activeColors.includes(colColor);
+            }
+            
+            if (matchesText && matchesColor) {
+                col.style.display = 'flex';
+                visibleCount++;
+            } else {
+                col.style.display = 'none';
+            }
+        });
+        
+        let banner = document.getElementById('color-filter-banner');
+        if (!activeColors.includes('all') && groupsContainer) {
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'color-filter-banner';
+                banner.style.cssText = 'background: rgba(239, 68, 68, 0.15); border: 1px dashed var(--danger); color: #fca5a5; padding: 0.5rem; text-align: center; border-radius: 6px; margin-bottom: 1rem; font-weight: 600; width: 100%; grid-column: 1 / -1;';
+                groupsContainer.prepend(banner);
+            }
+            banner.textContent = `⚠️ Color Filter Active: Showing ${visibleCount} of ${totalCount} clusters`;
+            banner.style.display = 'block';
+        } else {
+            if (banner) banner.style.display = 'none';
+        }
+    }
+
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            const allCards = document.querySelectorAll('.pdf-card');
-            
-            allCards.forEach(card => {
-                const title = card.querySelector('span').textContent.toLowerCase();
-                if (title.includes(term)) {
-                    card.style.display = 'flex';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-            
-            // Hide empty columns if a search is active
-            const allCols = document.querySelectorAll('.board-column');
-            allCols.forEach(col => {
-                if (col.id === 'ungrouped-container') return;
-                const visibleCards = Array.from(col.querySelectorAll('.pdf-card')).filter(c => c.style.display !== 'none');
-                if (term !== '' && visibleCards.length === 0) {
-                    col.style.display = 'none';
-                } else {
-                    col.style.display = 'flex';
-                }
-            });
+            currentSearchTerm = e.target.value.toLowerCase().trim();
+            applyFilters();
         });
     }
+
+    const colorFilterBtns = document.querySelectorAll('.color-filter-btn');
+    colorFilterBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const color = e.target.dataset.color || 'all';
+            if (color === 'all') {
+                activeColors = ['all'];
+                colorFilterBtns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+            } else {
+                activeColors = activeColors.filter(c => c !== 'all');
+                const allBtn = Array.from(colorFilterBtns).find(b => b.dataset.color === 'all');
+                if (allBtn) allBtn.classList.remove('active');
+                
+                if (activeColors.includes(color)) {
+                    activeColors = activeColors.filter(c => c !== color);
+                    e.target.classList.remove('active');
+                } else {
+                    activeColors.push(color);
+                    e.target.classList.add('active');
+                }
+                
+                if (activeColors.length === 0) {
+                    activeColors = ['all'];
+                    if (allBtn) allBtn.classList.add('active');
+                }
+            }
+            applyFilters();
+        });
+    });
 
     // Sort Logic
     const sortSelect = document.getElementById('sort-clusters');
@@ -544,8 +610,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 if (val === 'count-desc') return countB - countA;
                 if (val === 'count-asc') return countA - countB;
-                if (val === 'name-asc') return nameA.localeCompare(nameB);
-                if (val === 'name-desc') return nameB.localeCompare(nameA);
+                if (val === 'name-asc') return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+                if (val === 'name-desc') return nameB.localeCompare(nameA, undefined, { numeric: true, sensitivity: 'base' });
                 return 0;
             });
             

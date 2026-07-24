@@ -42,6 +42,16 @@
             </div>
 
             <div class="main-actions">
+                <div class="color-filters" title="Filter by color" style="display: flex; gap: 0.4rem; background: rgba(255,255,255,0.05); padding: 0.4rem; border-radius: 8px; border: 1px solid var(--border); align-items: center;">
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); margin-right: 0.2rem; text-transform: uppercase;">Filter:</span>
+                    <button class="color-filter-btn active" data-color="all" style="background: transparent; border: 1px solid var(--border); color: white; border-radius: 4px; cursor: pointer; padding: 0 0.4rem; font-size: 0.8rem;">All</button>
+                    <button class="color-filter-btn" data-color="transparent" style="background: transparent; border: 1px solid var(--border); border-radius: 50%; width: 18px; height: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.6rem;" title="No Color">⚪</button>
+                    <button class="color-filter-btn" data-color="#ef4444" style="background: #ef4444; border: none; border-radius: 50%; width: 18px; height: 18px; cursor: pointer;" title="Red"></button>
+                    <button class="color-filter-btn" data-color="#f97316" style="background: #f97316; border: none; border-radius: 50%; width: 18px; height: 18px; cursor: pointer;" title="Orange"></button>
+                    <button class="color-filter-btn" data-color="#eab308" style="background: #eab308; border: none; border-radius: 50%; width: 18px; height: 18px; cursor: pointer;" title="Yellow"></button>
+                    <button class="color-filter-btn" data-color="#22c55e" style="background: #22c55e; border: none; border-radius: 50%; width: 18px; height: 18px; cursor: pointer;" title="Green"></button>
+                    <button class="color-filter-btn" data-color="#64748b" style="background: #64748b; border: none; border-radius: 50%; width: 18px; height: 18px; cursor: pointer;" title="Grey"></button>
+                </div>
                 <input type="text" id="search-input" class="search-input" placeholder="Search files...">
                 <select id="sort-clusters" class="btn secondary" style="cursor: pointer;">
                     <option value="">Sort Clusters...</option>

@@ -50,6 +50,8 @@ body {
 
 .top-nav {
     display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
@@ -168,8 +170,11 @@ body {
 
 .actions-panel {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 1rem;
+    flex: 1;
 }
 
 .auto-group-controls {
@@ -221,6 +226,7 @@ body {
 
 .main-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
 }
@@ -591,6 +597,16 @@ body {
     border: 2px solid var(--accent);
     background: rgba(59,130,246,0.2) !important;
     transform: scale(0.98);
+}
+
+.color-filter-btn {
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+.color-filter-btn:hover {
+    transform: scale(1.1);
+}
+.color-filter-btn.active {
+    box-shadow: 0 0 0 2px var(--bg-main), 0 0 0 4px var(--accent) !important;
 }
 
 .btn.zoom-btn {
