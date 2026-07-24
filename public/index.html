@@ -43,6 +43,13 @@
 
             <div class="main-actions">
                 <input type="text" id="search-input" class="search-input" placeholder="Search files...">
+                <select id="sort-clusters" class="btn secondary" style="cursor: pointer;">
+                    <option value="">Sort Clusters...</option>
+                    <option value="count-desc">Largest First</option>
+                    <option value="count-asc">Smallest First</option>
+                    <option value="name-asc">Name: A-Z</option>
+                    <option value="name-desc">Name: Z-A</option>
+                </select>
                 <button id="overview-btn" class="btn secondary" title="View Cluster Overview"> 🔍 Overview </button>
                 <button id="add-group-btn" class="btn secondary"> + New Group </button>
                 <button id="save-btn" class="btn primary"> Save & Compile </button>
@@ -149,7 +156,14 @@
         <div class="board-column group-col">
             <div class="column-header">
                 <button class="collapse-group-btn btn secondary" title="Toggle collapse" style="padding: 0.1rem 0.4rem; font-size: 0.8rem; margin-right: 0.3rem;">–</button>
-                <input type="color" class="group-color-picker" title="Color tag" value="#3b82f6" style="width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; padding: 0; margin-right: 0.5rem; outline: none;">
+                <select class="group-color-picker" title="Color tag" style="width: 25px; height: 25px; border: none; background: transparent; cursor: pointer; padding: 0; margin-right: 0.5rem; outline: none; appearance: none; text-align: center;">
+                    <option value="transparent">⚪️</option>
+                    <option value="#ef4444">🔴</option>
+                    <option value="#f97316">🟠</option>
+                    <option value="#eab308">🟡</option>
+                    <option value="#22c55e">🟢</option>
+                    <option value="#64748b">🔘</option>
+                </select>
                 <div contenteditable="true" class="group-name-input">Cluster_X</div>
                 <span class="count">0</span>
                 <button class="delete-group-btn" title="Delete empty group">×</button>

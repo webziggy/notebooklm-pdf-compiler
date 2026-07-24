@@ -320,16 +320,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (savedColors[groupName]) {
                 colorPicker.value = savedColors[groupName];
                 col.style.borderColor = savedColors[groupName];
-                col.style.boxShadow = `0 0 10px ${savedColors[groupName]}40`;
+                col.style.boxShadow = savedColors[groupName] !== 'transparent' ? `0 0 10px ${savedColors[groupName]}40` : 'none';
             }
-            colorPicker.addEventListener('input', (e) => {
-                col.style.borderColor = e.target.value;
-                col.style.boxShadow = `0 0 10px ${e.target.value}40`;
-            });
             colorPicker.addEventListener('change', (e) => {
+                const val = e.target.value;
+                col.style.borderColor = val;
+                col.style.boxShadow = val !== 'transparent' ? `0 0 10px ${val}40` : 'none';
+                
                 const colors = JSON.parse(localStorage.getItem('notebooklm_compiler_colors') || '{}');
-                colors[input.textContent.trim()] = e.target.value;
+                colors[input.textContent.trim()] = val;
                 localStorage.setItem('notebooklm_compiler_colors', JSON.stringify(colors));
+                saveToLocal(`Changed color for "${input.textContent.trim()}"`);
             });
         }
         input.addEventListener('focus', () => {
@@ -524,6 +525,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                     col.style.display = 'flex';
                 }
             });
+        });
+    }
+
+    // Sort Logic
+    const sortSelect = document.getElementById('sort-clusters');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (!val) return;
+            
+            const cols = Array.from(groupsContainer.querySelectorAll('.group-col'));
+            cols.sort((a, b) => {
+                const countA = parseInt(a.querySelector('.count').textContent) || 0;
+                const countB = parseInt(b.querySelector('.count').textContent) || 0;
+                const nameA = a.querySelector('.group-name-input').textContent.trim().toLowerCase();
+                const nameB = b.querySelector('.group-name-input').textContent.trim().toLowerCase();
+                
+                if (val === 'count-desc') return countB - countA;
+                if (val === 'count-asc') return countA - countB;
+                if (val === 'name-asc') return nameA.localeCompare(nameB);
+                if (val === 'name-desc') return nameB.localeCompare(nameA);
+                return 0;
+            });
+            
+            cols.forEach(col => groupsContainer.appendChild(col));
+            e.target.value = '';
+            
+            const labels = {
+                'count-desc': 'Largest First',
+                'count-asc': 'Smallest First',
+                'name-asc': 'Name A-Z',
+                'name-desc': 'Name Z-A'
+            };
+            saveToLocal(`Sorted clusters by ${labels[val]}`);
         });
     }
 
