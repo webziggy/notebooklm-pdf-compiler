@@ -133,6 +133,9 @@ Options:
   --similarity <num> Tune the ML clustering strictness from 0.1 to 0.9 (default: 0.4)
   --grouping-ui      Launch a beautiful web interface to visually drag-and-drop groups
   --compress         Enable Ghostscript pre-compression to maximize source slot efficiency
+  --ai               Use Ollama for smart semantic clustering
+  --ai-model <model> Ollama model to use for smart naming (default: llama3)
+  --ai-context <ctx> Additional context prompt to guide the LLM naming
   --dry-run          Simulate the grouping without generating actual PDFs
   --max-words <num>  Override the default word limit (default: 450000)
   --max-mb <num>     Override the default file size limit in MB (default: 180)
@@ -156,6 +159,9 @@ const logsDir = path.resolve(getArgValue('--logs', './logs'));
 const isDryRun = args.includes('--dry-run');
 const doCompress = args.includes('--compress');
 const compressionTimeoutMs = parseInt(getArgValue('--timeout', 5), 10) * 60 * 1000;
+const runAi = args.includes('--ai');
+const aiModel = getArgValue('--ai-model', 'llama3');
+const aiContext = getArgValue('--ai-context', '');
 
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
@@ -214,26 +220,24 @@ if (args.includes('--grouping-ui')) {
 }
 
 // Phase 2.1: Auto-Grouping logic
-if (args.includes('--suggest-groups') || args.includes('--smart-groups') || args.includes('--ai-groups')) {
+if (args.includes('--suggest-groups') || args.includes('--smart-groups') || runAi) {
     const isSmartGroups = args.includes('--smart-groups');
-    const isAiGroups = args.includes('--ai-groups');
     const groupsOutput = 'groups.json';
     const groups = {};
     const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
     const fileSet = new Set(files);
     
-    if (isAiGroups) {
-        console.log(`\nAnalyzing ${files.length} files using Local AI (Ollama Semantic Embeddings)...`);
-        const { performAIGrouping } = require('./ai-helper');
+    if (runAi) {
+        console.log(`\n[AI-Group] Running smart semantic clustering via Ollama (Naming model: ${aiModel})...`);
+        if (aiContext) console.log(`[AI-Group] Using context: "${aiContext}"`);
         const similarityTarget = parseFloat(getArgValue('--similarity', '0.5'));
-        const textModel = getArgValue('--ai-model', 'llama3');
         
         try {
             const resultGroups = require('child_process').execSync(`node -e "
                 const { performAIGrouping } = require('./ai-helper');
                 (async () => {
                     try {
-                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, '${textModel}', (msg) => console.log(msg));
+                        const res = await performAIGrouping(${JSON.stringify(files)}, ${similarityTarget}, '${aiModel}', ${JSON.stringify(aiContext)}, (msg) => console.log(msg));
                         console.log('__JSON_START__' + JSON.stringify(res) + '__JSON_END__');
                     } catch(err) {
                         console.error('__ERR_START__' + err.message + '__ERR_END__');
@@ -256,7 +260,7 @@ if (args.includes('--suggest-groups') || args.includes('--smart-groups') || args
             
         } catch (err) {
             console.error(`\n❌ AI Grouping Failed: ${err.message}`);
-            console.log("Please ensure Ollama is running (`ollama serve`) and accessible.");
+            console.log("Please ensure Ollama is running (\`ollama serve\`) and accessible.");
             process.exit(1);
         }
     } else if (isSmartGroups) {

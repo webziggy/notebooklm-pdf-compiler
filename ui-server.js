@@ -133,12 +133,13 @@ function startUI(inputDir, groupsOutput) {
 
         const similarity = parseFloat(req.query.similarity) || 0.5;
         const textModel = req.query.model || 'llama3';
+        const context = req.query.context || '';
         
         const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
         
         try {
             const { performAIGrouping } = require('./ai-helper');
-            const groups = await performAIGrouping(files, similarity, textModel, (msg) => {
+            const groups = await performAIGrouping(files, similarity, textModel, context, (msg) => {
                 res.write(`data: ${JSON.stringify({ type: 'progress', message: msg })}\n\n`);
                 console.log(`[AI-Group] ${msg}`);
             });

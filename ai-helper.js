@@ -184,19 +184,22 @@ function nameClusterLCS(files, existingNames) {
     return getUniqueName(cleanName, existingNames);
 }
 
-async function nameClustersWithLLM(groupedFilesMap, textModel, onProgress) {
+async function nameClustersWithLLM(groupedFilesMap, textModel, context, onProgress) {
     const clusters = Object.values(groupedFilesMap);
     
-    const prompt = `
+    let prompt = `
 You are an expert file organizer. Given a list of filenames belonging to a single group, reply with a SHORT, professional folder name that best represents them.
 RULES:
 1. Output ONLY the folder name, nothing else. No quotes, no markdown, no explanation.
 2. The name should be 1-3 words.
 3. Use CamelCase or Spaces.
+`;
 
-Filenames:
-__FILES__
-    `.trim();
+    if (context) {
+        prompt += `\nBACKGROUND CONTEXT: ${context}\n`;
+    }
+
+    prompt += `\nFilenames:\n__FILES__`;
 
     const namedGroups = {};
     const existingNames = new Set(["Ungrouped", "Holding Area"]);
@@ -236,7 +239,7 @@ __FILES__
     return namedGroups;
 }
 
-async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'llama3', onProgress) {
+async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'llama3', context = '', onProgress) {
     const EMBED_MODEL = 'nomic-embed-text';
     
     if (onProgress) onProgress("Checking Ollama connection...");
@@ -288,7 +291,7 @@ async function performAIGrouping(files, similarityTarget = 0.5, textModel = 'lla
     let finalGroups = {};
     if (hasTextModel && textModel.toLowerCase() !== 'none') {
         if (onProgress) onProgress(`Using ${textModel} to generate smart folder names...`);
-        finalGroups = await nameClustersWithLLM(tempGroups, textModel, onProgress);
+        finalGroups = await nameClustersWithLLM(tempGroups, textModel, context, onProgress);
     } else {
         if (onProgress) onProgress(`Naming clusters using common prefix algorithm...`);
         const existingNames = new Set(["Ungrouped", "Holding Area"]);

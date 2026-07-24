@@ -100,6 +100,12 @@
                 </p>
                 
                 <div class="input-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.9rem;">Dataset Context (Optional):</label>
+                    <textarea id="ai-context-input" placeholder="e.g. These are documents which are from..." style="width: 100%; height: 60px; padding: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white; border-radius: 4px; resize: vertical; font-family: inherit; font-size: 0.85rem;"></textarea>
+                    <small style="display: block; color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">Provides background knowledge to the LLM for vastly better folder naming.</small>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 1rem;">
                     <label style="display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.9rem;">LLM Naming Model (Optional):</label>
                     <input type="text" id="ai-model-input" value="llama3" placeholder="e.g. llama3" style="width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white; border-radius: 4px;">
                     <small style="display: block; color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">Used to generate smart folder names. Set to "none" to disable. Will download automatically if missing.</small>

@@ -431,6 +431,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cancelAiBtn = document.getElementById('cancel-ai-btn');
     const startAiBtn = document.getElementById('start-ai-btn');
     const aiModelInput = document.getElementById('ai-model-input');
+    const aiContextInput = document.getElementById('ai-context-input');
     const aiStatusPanel = document.getElementById('ai-status-panel');
     const aiStatusText = document.getElementById('ai-status-text');
 
@@ -446,13 +447,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         startAiBtn.addEventListener('click', () => {
             const simTarget = parseFloat(document.getElementById('similarity-input').value) || 0.5;
             const textModel = aiModelInput.value.trim() || 'llama3';
+            const context = aiContextInput.value.trim();
             
             aiStatusPanel.classList.remove('hidden');
             aiStatusText.textContent = "Connecting to Ollama...";
             startAiBtn.disabled = true;
             cancelAiBtn.disabled = true;
 
-            const es = new EventSource(`/api/ai-group-stream?similarity=${simTarget}&model=${encodeURIComponent(textModel)}`);
+            let sseUrl = `/api/ai-group-stream?similarity=${simTarget}&model=${encodeURIComponent(textModel)}`;
+            if (context) {
+                sseUrl += `&context=${encodeURIComponent(context)}`;
+            }
+            const es = new EventSource(sseUrl);
             
             es.onmessage = (event) => {
                 const data = JSON.parse(event.data);
