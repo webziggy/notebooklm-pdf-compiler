@@ -11,7 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 </head>
 <body>
-    <header class="app-header">
+    <header class="top-nav">
         <div class="header-title">
             <h1>NotebookLM PDF Compiler</h1>
             <p>Drag and drop PDFs to organize your compilation.</p>
@@ -52,13 +52,9 @@
     </header>
 
     <main class="board-container">
-        <!-- Holding Area always stays on the left -->
-        <div class="board-column ungrouped-col" id="ungrouped-container">
-            <div class="column-header">
-                <h2>📦 Holding Area</h2>
-                <span class="count" id="ungrouped-count">0</span>
-            </div>
-            <div class="stats-container">
+        <!-- Stats and Holding Area -->
+        <div class="left-sidebar" style="display: flex; flex-direction: column; gap: 1rem; min-width: 300px; width: 300px;">
+            <div class="stats-container" style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between;">
                 <div class="stat-badge">
                     <span class="stat-label">Groups</span>
                     <span class="stat-value" id="stat-groups-val">0</span><span class="stat-limit">/ 50</span>
@@ -67,14 +63,21 @@
                     <span class="stat-label">Mapped</span>
                     <span class="stat-value" id="stat-files-val">0</span>
                 </div>
-                <div class="stat-badge warning hidden" id="stat-warning">
+                <div class="stat-badge warning hidden" id="stat-warning" style="width: 100%; justify-content: center; margin-top: 0.25rem;">
                     ⚠️ Exceeds 50 Source Limit
                 </div>
             </div>
-            <p class="helper-text">Drag files here to remove them from groups.</p>
-            <button id="group-holding-btn" class="btn secondary" style="margin: 0.5rem 1rem; width: calc(100% - 2rem);" disabled title="Create a new group from all files here">Group All Files</button>
-            <div class="sortable-list" id="ungrouped-list" data-group="Ungrouped">
-                <!-- Items injected via JS -->
+
+            <div class="board-column ungrouped-col" id="ungrouped-container" style="flex: 1; min-width: unset; width: 100%;">
+                <div class="column-header">
+                    <h2>📦 Holding Area</h2>
+                    <span class="count" id="ungrouped-count">0</span>
+                </div>
+                <p class="helper-text">Drag files here to remove them from groups.</p>
+                <button id="group-holding-btn" class="btn secondary" style="margin: 0.5rem 1rem; width: calc(100% - 2rem);" disabled title="Create a new group from all files here">Group All Files</button>
+                <div class="sortable-list" id="ungrouped-list" data-group="Ungrouped">
+                    <!-- Items injected via JS -->
+                </div>
             </div>
         </div>
 

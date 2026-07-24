@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return div;
     }
 
-    function createGroupColumn(groupName, files) {
+    function createGroupColumn(groupName, files, prepend = false) {
         const clone = groupTemplate.content.cloneNode(true);
         const col = clone.querySelector('.board-column');
         const input = clone.querySelector('.group-name-input');
@@ -290,7 +290,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         makeSortable(list);
-        groupsContainer.appendChild(col);
+        if (prepend) {
+            groupsContainer.prepend(col);
+        } else {
+            groupsContainer.appendChild(col);
+        }
     }
 
     function renderBoard(groups) {
@@ -398,10 +402,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     addGroupBtn.addEventListener('click', () => {
         lastKnownState = getCurrentState();
         const newName = "New_Cluster_" + (document.querySelectorAll('.group-col').length + 1);
-        createGroupColumn(newName, []);
+        createGroupColumn(newName, [], true);
         updateCounts();
         saveToLocal(`Created new group "${newName}"`);
-        groupsContainer.scrollLeft = groupsContainer.scrollWidth;
+        groupsContainer.scrollLeft = 0;
     });
     
     groupHoldingBtn.addEventListener('click', () => {
@@ -409,16 +413,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const newName = "New_Cluster_" + (document.querySelectorAll('.group-col').length + 1);
         const cards = Array.from(ungroupedList.children);
         
-        // Pass empty array to createGroupColumn, then move cards manually so SortableJS state is preserved cleanly
-        createGroupColumn(newName, []);
+        // Pass true to prepend the new column
+        createGroupColumn(newName, [], true);
         
-        // The new column is the last child in groupsContainer
-        const newColList = groupsContainer.lastChild.querySelector('.sortable-list');
+        // The new column is now the FIRST child in groupsContainer
+        const newColList = groupsContainer.firstChild.querySelector('.sortable-list');
         cards.forEach(card => newColList.appendChild(card));
         
         updateCounts();
         saveToLocal(`Grouped Holding Area into "${newName}"`);
-        groupsContainer.scrollLeft = groupsContainer.scrollWidth;
+        groupsContainer.scrollLeft = 0;
     });
     
     // Auto Group Logic
