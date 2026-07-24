@@ -6,12 +6,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const addGroupBtn = document.getElementById('add-group-btn');
     const fileSelector = document.getElementById('file-selector');
     const deleteFileBtn = document.getElementById('delete-file-btn');
+    const undoBtn = document.getElementById('undo-btn');
 
     const LOCAL_STORAGE_KEY = 'notebooklm_compiler_unsaved_groups';
     let currentLoadedFile = 'groups.json';
     
-    // Save current UI state to localStorage
-    function saveToLocal() {
+    // History State
+    let historyStack = [];
+    let lastKnownState = null;
+
+    function getCurrentState() {
         const payload = { groups: {} };
         payload.groups['Ungrouped'] = Array.from(ungroupedList.children).map(c => c.dataset.file);
         
@@ -21,8 +25,41 @@ document.addEventListener('DOMContentLoaded', async () => {
             const files = Array.from(col.querySelector('.sortable-list').children).map(c => c.dataset.file);
             payload.groups[name] = files;
         });
+        return payload;
+    }
+
+    function pushToHistory() {
+        if (lastKnownState) {
+            historyStack.push(JSON.stringify(lastKnownState));
+            if (historyStack.length > 50) historyStack.shift();
+            undoBtn.disabled = false;
+        }
+    }
+    
+    // Save current UI state to localStorage
+    function saveToLocal(skipHistory = false) {
+        if (!skipHistory) pushToHistory();
         
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
+        const currentState = getCurrentState();
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentState));
+        lastKnownState = currentState;
+    }
+
+    function performUndo() {
+        if (historyStack.length === 0) return;
+        const previousStateStr = historyStack.pop();
+        const previousState = JSON.parse(previousStateStr);
+        
+        renderBoard(previousState.groups);
+        
+        // Save to local storage but don't add this action to history
+        const currentState = getCurrentState();
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentState));
+        lastKnownState = currentState;
+        
+        if (historyStack.length === 0) {
+            undoBtn.disabled = true;
+        }
     }
 
     // Initialize Sortable on a container
@@ -32,6 +69,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             animation: 150,
             ghostClass: 'sortable-ghost',
             dragClass: 'sortable-drag',
+            onStart: () => {
+                // We ensure lastKnownState is pristine before drag starts
+                lastKnownState = getCurrentState(); 
+            },
             onEnd: () => {
                 updateCounts();
                 saveToLocal();
@@ -67,7 +108,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deleteBtn = clone.querySelector('.delete-group-btn');
 
         input.value = groupName;
-        input.addEventListener('change', saveToLocal);
+        
+        // Track focus to save history right before renaming
+        input.addEventListener('focus', () => {
+            lastKnownState = getCurrentState();
+        });
+        input.addEventListener('change', () => saveToLocal());
         
         files.forEach(file => {
             list.appendChild(createCard(file));
@@ -76,6 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Automatically dump files to Ungrouped when deleting a column
         deleteBtn.addEventListener('click', () => {
             if (confirm(`Are you sure you want to delete "${input.value}"? Any files inside will be moved to the Ungrouped Bucket.`)) {
+                lastKnownState = getCurrentState();
                 const cards = Array.from(list.children);
                 cards.forEach(card => ungroupedList.appendChild(card));
                 col.remove();
@@ -136,6 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (savedState && filename === '') {
                 if (confirm("You have unsaved drag-and-drop changes. Restore them? (Cancel to load from disk)")) {
                     renderBoard(JSON.parse(savedState).groups);
+                    lastKnownState = getCurrentState();
                     return;
                 } else {
                     localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -143,6 +191,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             renderBoard(data.groups);
+            lastKnownState = getCurrentState();
+            
+            // Reset history when loading a new file
+            historyStack = [];
+            undoBtn.disabled = true;
+            
         } catch (err) {
             console.error("Failed to load data", err);
             alert("Failed to connect to the local server.");
@@ -165,7 +219,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    undoBtn.addEventListener('click', performUndo);
+
+    // Keyboard shortcut for Undo (Cmd+Z or Ctrl+Z)
+    document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+            e.preventDefault();
+            performUndo();
+        }
+    });
+
     addGroupBtn.addEventListener('click', () => {
+        lastKnownState = getCurrentState();
         const newName = "New_Cluster_" + (document.querySelectorAll('.group-col').length + 1);
         createGroupColumn(newName, []);
         updateCounts();
@@ -177,13 +242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveBtn.textContent = "Saving...";
         saveBtn.disabled = true;
 
-        const payload = { groups: {} };
-        payload.groups['Ungrouped'] = Array.from(ungroupedList.children).map(c => c.dataset.file);
-        document.querySelectorAll('.group-col').forEach(col => {
-            const name = col.querySelector('.group-name-input').value.trim() || 'Unnamed_Group';
-            const files = Array.from(col.querySelector('.sortable-list').children).map(c => c.dataset.file);
-            payload.groups[name] = files;
-        });
+        const payload = getCurrentState();
 
         try {
             await fetch('/api/save', {
@@ -194,10 +253,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.removeItem(LOCAL_STORAGE_KEY);
             saveBtn.style.background = 'var(--success)';
             saveBtn.textContent = "Saved! Check Terminal.";
+            
+            historyStack = [];
+            undoBtn.disabled = true;
+            
         } catch (err) {
             console.error(err);
             saveBtn.style.background = 'var(--danger)';
             saveBtn.textContent = "Error Saving";
+            saveBtn.disabled = false;
         }
     });
 
