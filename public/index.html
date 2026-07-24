@@ -24,19 +24,26 @@
             <button id="delete-file-btn" class="btn delete-btn hidden" title="Delete this version">🗑️</button>
         </div>
 
-        <div class="actions">
+        <div class="actions-panel">
             <div class="auto-group-controls">
-                <button id="regex-group-btn" class="btn secondary" title="Auto-Group using Regex Prefixes">Regex Group</button>
+                <span class="group-label">Auto-Group:</span>
+                <button id="regex-group-btn" class="btn secondary" title="Auto-Group using Regex Prefixes">Regex</button>
                 <div class="smart-group-controls">
-                    <button id="smart-group-btn" class="btn secondary" title="Auto-Group using ML Clustering">Smart Group</button>
+                    <button id="smart-group-btn" class="btn secondary" title="Auto-Group using ML Clustering">Smart</button>
                     <input type="number" id="similarity-input" min="0.1" max="0.9" step="0.1" value="0.4" title="Similarity Threshold">
                 </div>
             </div>
             
-            <button id="history-btn" class="btn secondary" title="View action history"> 🕒 History </button>
-            <button id="undo-btn" class="btn secondary" disabled title="Undo last action (Cmd/Ctrl+Z)"> ↩ Undo </button>
-            <button id="add-group-btn" class="btn secondary"> + New Group </button>
-            <button id="save-btn" class="btn primary"> Save & Compile </button>
+            <div class="history-controls">
+                <button id="undo-btn" class="btn secondary" disabled title="Undo last action (Cmd/Ctrl+Z)"> ↩ </button>
+                <button id="redo-btn" class="btn secondary" disabled title="Redo action (Cmd/Ctrl+Shift+Z)"> ↪ </button>
+                <button id="history-btn" class="btn secondary" title="View action history"> 🕒 History </button>
+            </div>
+
+            <div class="main-actions">
+                <button id="add-group-btn" class="btn secondary"> + New Group </button>
+                <button id="save-btn" class="btn primary"> Save & Compile </button>
+            </div>
         </div>
     </header>
 
