@@ -65,12 +65,19 @@ async function ensureModel(modelName, onProgress) {
 }
 
 async function getEmbeddings(texts, modelName) {
-    // /api/embed takes { model, input: [] } and returns { embeddings: [[]] }
-    const res = await makeRequest('POST', '/api/embed', {
-        model: modelName,
-        input: texts
-    });
-    return res.embeddings;
+    const embeddings = [];
+    for (const text of texts) {
+        try {
+            const res = await makeRequest('POST', '/api/embeddings', {
+                model: modelName,
+                prompt: text
+            });
+            embeddings.push(res.embedding);
+        } catch (err) {
+            throw new Error(`Failed to generate embedding for ${text}: ${err.message}`);
+        }
+    }
+    return embeddings;
 }
 
 function cosineSimilarity(vecA, vecB) {
