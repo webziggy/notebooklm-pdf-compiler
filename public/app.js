@@ -8,6 +8,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const deleteFileBtn = document.getElementById('delete-file-btn');
     const undoBtn = document.getElementById('undo-btn');
     
+    // Auto Group Elements
+    const regexBtn = document.getElementById('regex-group-btn');
+    const smartBtn = document.getElementById('smart-group-btn');
+    const similarityInput = document.getElementById('similarity-input');
+    
     // History Panel elements
     const historyBtn = document.getElementById('history-btn');
     const closeHistoryBtn = document.getElementById('close-history-btn');
@@ -348,6 +353,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveBtn.disabled = false;
         }
     });
+
+    // Auto Group Logic
+    async function runAutoGroup(type) {
+        if (!confirm(`Warning: Running this will automatically regroup all files. Your current layout will be overwritten (but you can Undo it). Proceed?`)) {
+            return;
+        }
+        
+        lastKnownState = getCurrentState();
+        const similarity = similarityInput.value;
+        const btn = type === 'smart' ? smartBtn : regexBtn;
+        const originalText = btn.textContent;
+        
+        btn.textContent = "Processing...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/auto-group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, similarity })
+            });
+            const data = await res.json();
+            
+            pushToHistory(type === 'smart' ? `Smart Grouped (Sim: ${similarity})` : `Regex Grouped`);
+            renderBoard(data.groups);
+            lastKnownState = getCurrentState();
+            
+        } catch (err) {
+            console.error("Auto Group Failed", err);
+            alert("Failed to run auto-grouping.");
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    regexBtn.addEventListener('click', () => runAutoGroup('regex'));
+    smartBtn.addEventListener('click', () => runAutoGroup('smart'));
 
     // Initial load
     loadData();

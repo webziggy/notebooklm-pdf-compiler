@@ -33,6 +33,56 @@ function startUI(inputDir, groupsOutput) {
         res.json({ groups, groupFiles, currentFile: targetFile });
     });
 
+    app.post('/api/auto-group', (req, res) => {
+        const { type, similarity } = req.body;
+        const files = fs.readdirSync(inputDir).filter(f => f.toLowerCase().endsWith('.pdf'));
+        const groups = {};
+
+        if (type === 'smart') {
+            const stringSimilarity = require('string-similarity');
+            const hclust = require('ml-hclust');
+            const distanceMatrix = [];
+            for (let i = 0; i < files.length; i++) {
+                const row = [];
+                for (let j = 0; j < files.length; j++) {
+                    if (i === j) row.push(0);
+                    else if (j < i) row.push(distanceMatrix[j][i]);
+                    else row.push(1 - stringSimilarity.compareTwoStrings(files[i], files[j]));
+                }
+                distanceMatrix.push(row);
+            }
+            const tree = hclust.agnes(distanceMatrix, { method: 'complete' });
+            const similarityTarget = parseFloat(similarity) || 0.4;
+            const distanceCut = Math.max(0.01, Math.min(0.99, 1.0 - similarityTarget));
+            const clusters = tree.cut(distanceCut);
+            clusters.forEach((cluster, idx) => {
+                groups[`Cluster_${idx + 1}`] = cluster.indices().map(fileIdx => files[fileIdx]).sort();
+            });
+        } else {
+            // Regex Suggest
+            const regex = new RegExp('^([A-Za-z]+)-');
+            files.forEach(f => {
+                const match = f.match(regex);
+                const groupName = match ? match[1] : 'Holding Area';
+                if (!groups[groupName]) groups[groupName] = [];
+                groups[groupName].push(f);
+            });
+        }
+
+        const groupedFiles = new Set(Object.values(groups).flat());
+        groups["Holding Area"] = groups["Holding Area"] || [];
+        files.forEach(f => {
+            if (!groupedFiles.has(f)) groups["Holding Area"].push(f);
+        });
+        if (groups["Holding Area"].length === 0) delete groups["Holding Area"];
+        if (groups["Ungrouped"]) {
+            groups["Holding Area"] = [...(groups["Holding Area"]||[]), ...groups["Ungrouped"]];
+            delete groups["Ungrouped"];
+        }
+
+        res.json({ groups });
+    });
+
     // API to delete a specific version
     app.delete('/api/delete-file', (req, res) => {
         const { filename } = req.body;
