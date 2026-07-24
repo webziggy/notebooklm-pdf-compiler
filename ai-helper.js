@@ -190,18 +190,26 @@ async function nameClustersWithLLM(groupedFilesMap, textModel, context, onProgre
     const clusters = Object.values(groupedFilesMap);
     
     let prompt = `
-You are an expert file organizer. Given a list of filenames belonging to a single group, reply with a SHORT, professional folder name that best represents them.
-RULES:
-1. Output ONLY the folder name, nothing else. No quotes, no markdown, no explanation.
-2. The name should be 1-3 words.
-3. Use CamelCase or Spaces.
+You are an expert file organizer. Your job is to look at a list of grouped filenames and provide a SHORT, professional folder name that represents their underlying theme, entity, or topic.
+
+CRITICAL INSTRUCTIONS:
+1. Identify any recurring names, acronyms, or topics in the filenames.
 `;
 
     if (context) {
-        prompt += `\nBACKGROUND CONTEXT: ${context}\n`;
+        prompt += `2. You MUST heavily weigh the following BACKGROUND CONTEXT. If an acronym, project code, or short name from the context appears in the filenames, use the full descriptive name from the context for the folder!
+BACKGROUND CONTEXT: ${context}
+`;
     }
 
-    prompt += `\nFilenames:\n__FILES__`;
+    prompt += `
+FORMATTING RULES:
+1. Output ONLY the folder name, absolutely nothing else. No explanation, no quotes, no markdown.
+2. The name should be concise (1-5 words).
+3. Do not include words like "Files", "Documents", "PDFs", or "Folder".
+
+Filenames to analyze:
+__FILES__`;
 
     const namedGroups = {};
     const existingNames = new Set(["Ungrouped", "Holding Area"]);
