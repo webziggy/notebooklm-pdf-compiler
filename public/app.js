@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const addGroupBtn = document.getElementById('add-group-btn');
     const fileSelector = document.getElementById('file-selector');
     const deleteFileBtn = document.getElementById('delete-file-btn');
+    const groupHoldingBtn = document.getElementById('group-holding-btn');
     
     // Auto Group Elements
     const regexBtn = document.getElementById('regex-group-btn');
@@ -238,6 +239,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 groupsVal.style.color = 'var(--text-primary)';
             }
         }
+        
+        if (groupHoldingBtn) {
+            const ungroupedItems = document.querySelectorAll('#ungrouped-list .pdf-card').length;
+            groupHoldingBtn.disabled = ungroupedItems === 0;
+        }
     }
 
     function createCard(filename) {
@@ -395,6 +401,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         createGroupColumn(newName, []);
         updateCounts();
         saveToLocal(`Created new group "${newName}"`);
+        groupsContainer.scrollLeft = groupsContainer.scrollWidth;
+    });
+    
+    groupHoldingBtn.addEventListener('click', () => {
+        lastKnownState = getCurrentState();
+        const newName = "New_Cluster_" + (document.querySelectorAll('.group-col').length + 1);
+        const cards = Array.from(ungroupedList.children);
+        
+        // Pass empty array to createGroupColumn, then move cards manually so SortableJS state is preserved cleanly
+        createGroupColumn(newName, []);
+        
+        // The new column is the last child in groupsContainer
+        const newColList = groupsContainer.lastChild.querySelector('.sortable-list');
+        cards.forEach(card => newColList.appendChild(card));
+        
+        updateCounts();
+        saveToLocal(`Grouped Holding Area into "${newName}"`);
         groupsContainer.scrollLeft = groupsContainer.scrollWidth;
     });
     
