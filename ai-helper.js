@@ -193,11 +193,12 @@ async function nameClustersWithLLM(groupedFilesMap, textModel, context, onProgre
 You are an expert file organizer. Your job is to look at a list of grouped filenames and provide a SHORT, professional folder name that represents their underlying theme, entity, or topic.
 
 CRITICAL INSTRUCTIONS:
-1. Identify any recurring names, acronyms, or topics in the filenames.
+1. Identify any recurring core names, acronyms, or topics in the filenames.
+2. IGNORE dates (e.g. 2021-01-01), timestamps, version numbers (v1, FINAL), Bates numbers, alphanumeric IDs, and generic prefixes (SCAN, DOC) when deciding the name. The folder should represent the overarching entity or subject, not specific versions or dates.
 `;
 
     if (context) {
-        prompt += `2. You MUST heavily weigh the following BACKGROUND CONTEXT. If an acronym, project code, or short name from the context appears in the filenames, use the full descriptive name from the context for the folder!
+        prompt += `3. You MUST heavily weigh the following BACKGROUND CONTEXT. If an acronym, project code, or short name from the context appears in the filenames, use the full descriptive name from the context for the folder!
 BACKGROUND CONTEXT: ${context}
 `;
     }
